@@ -101,23 +101,23 @@ def extract_query_parameters(
         c for c in kebab_candidates
         if not c.startswith(("doc_", "dec_", "ev_", "usr_", "rec_"))
     ]
-
-    sys_word_match = re.search(
-        r"(?:system|service|gateway|engine)\s+['\"]?([a-zA-Z0-9_\-]+)['\"]?",
-        user_query,
-        re.I,
-    ) or re.search(
-        r"['\"]?([a-zA-Z0-9_\-]+)['\"]?\s+(?:system|service|gateway|engine)",
-        user_query,
-        re.I,
-    )
-    if sys_word_match:
-        cand = sys_word_match.group(1).strip()
-        if cand.lower() not in ("the", "a", "an", "this", "that", "owner", "drift", "rfc"):
-            system_name = cand
-
-    if not system_name and kebab_candidates:
+    if kebab_candidates:
         system_name = kebab_candidates[0]
+
+    if not system_name:
+        sys_word_match = re.search(
+            r"(?:system|service|gateway|engine)\s+['\"]?([a-zA-Z0-9_\-]+)['\"]?",
+            user_query,
+            re.I,
+        ) or re.search(
+            r"['\"]?([a-zA-Z0-9_\-]+)['\"]?\s+(?:system|service|gateway|engine)",
+            user_query,
+            re.I,
+        )
+        if sys_word_match:
+            cand = sys_word_match.group(1).strip()
+            if cand.lower() not in ("the", "a", "an", "this", "that", "owner", "drift", "rfc", "stale"):
+                system_name = cand
 
     # Try matching against live tenant graph if available
     if not system_name:

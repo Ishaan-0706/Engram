@@ -9,6 +9,7 @@ Prints node and edge counts for both tenants upon completion.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import logging
 import os
 from pathlib import Path
@@ -117,7 +118,7 @@ def seed_acme_payments(db: FalkorDB) -> tuple[int, int]:
         "to local Ed25519 public keys."
     )
     source_uri = "slack://channels/inc-payments/p1726000000"
-    content_hash = "a58b09339e0839e4e39c4a4a4918e55e5b30693a1cf5937402f1a66ff5d5642d"
+    content_hash = hashlib.sha256(f"{excerpt}\n{source_uri}".encode("utf-8")).hexdigest()
 
     graph.query(
         """
