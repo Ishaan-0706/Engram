@@ -1,0 +1,50 @@
+{
+  "baseline": {
+    "available": true,
+    "branch": "main",
+    "branch_fingerprint": "6403203dd5a0867eb14d104ee8a73730bd72dd9ad92e78d996a6dba0a5dcfc01",
+    "changes": [],
+    "errors": [],
+    "paths_redacted": false,
+    "revision": "8c4097c6557a9cd7ced832cdcbd6445a444b48d2",
+    "status_fingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "upstream": "origin/main",
+    "upstream_error": null,
+    "verified": true
+  },
+  "checkpoints": [
+    {
+      "git": {
+        "available": true,
+        "branch": "main",
+        "branch_fingerprint": "6403203dd5a0867eb14d104ee8a73730bd72dd9ad92e78d996a6dba0a5dcfc01",
+        "changes": [
+          {
+            "path": ".agents/apex/",
+            "status": "??"
+          }
+        ],
+        "errors": [],
+        "paths_redacted": false,
+        "revision": "8c4097c6557a9cd7ced832cdcbd6445a444b48d2",
+        "status_fingerprint": "a76b56c9eb9cae63109b7ed62ea04996a868b68f7ec3f80b730489b6e739867e",
+        "upstream": "origin/main",
+        "upstream_error": null,
+        "verified": true
+      },
+      "id": "504cbe9e-266b-4a36-85e2-6c22ef2f424a",
+      "message": "Ready to execute",
+      "phase": "plan",
+      "timestamp": "2026-10-16T09:32:59+00:00"
+    }
+  ],
+  "created_at": "2026-10-16T09:32:51+00:00",
+  "current_phase": "execute",
+  "last_event_id": "ff8795da-95cb-4825-85e9-3bada7de17aa",
+  "root": "/home/anakin_skywalker007/Engram",
+  "run_id": "20261016-150251-phase-2-ingestion-pipeline-adapters-identity-res-87d76472",
+  "schema_version": 1,
+  "status": "active",
+  "task": "Phase 2 ingestion pipeline: adapters, identity resolution, Evidence invariant, idempotent FalkorDB sync CLI",
+  "updated_at": "2026-10-16T09:33:52+00:00"
+}

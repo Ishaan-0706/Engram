@@ -1,0 +1,55 @@
+{
+  "system": "handbook",
+  "external_id": "org-export",
+  "people": [
+    {
+      "name": "Ada Lovelace",
+      "canonical_email": "ada@example.test",
+      "identity_key": "slack:U123",
+      "role": "Staff engineer"
+    },
+    {
+      "name": "Grace Hopper",
+      "identity_key": "linear:usr_456"
+    },
+    {
+      "name": "Unknown Contractor"
+    }
+  ],
+  "teams": [{ "id": "team_platform", "name": "Platform" }],
+  "projects": [
+    {
+      "id": "proj_payments",
+      "name": "Payments migration",
+      "status": "delayed",
+      "owner_email": "ada@example.test"
+    }
+  ],
+  "tickets": [
+    {
+      "id": "ticket_482",
+      "title": "Payments API migration",
+      "status": "blocked",
+      "assignee_email": "ada@example.test",
+      "project_id": "proj_payments",
+      "description": "Compatibility tests are failing on the new endpoint and block the payments migration."
+    }
+  ],
+  "memberships": [
+    { "canonical_email": "ada@example.test", "team_id": "team_platform" }
+  ],
+  "decisions": [
+    {
+      "id": "dec_pause",
+      "summary": "Pause the payments cutover",
+      "status": "active",
+      "project_id": "proj_payments",
+      "excerpt": "Compatibility tests are failing on the new endpoint and block the payments migration."
+    },
+    {
+      "id": "dec_ungrounded",
+      "summary": "Invented without evidence",
+      "excerpt": "too-short"
+    }
+  ]
+}
