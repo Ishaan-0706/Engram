@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://engram.dev/contracts/mcp-tool-response.schema.json",
+  "title": "MCP tool response envelope",
+  "description": "Developer 1 writes this shape. Developer 2 cites only evidence[].id. Schema failure is a tool error, not model-visible prose.",
+  "oneOf": [
+    { "$ref": "#/$defs/success" },
+    { "$ref": "#/$defs/failure" }
+  ],
+  "$defs": {
+    "rfc3339": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "evidenceId": {
+      "type": "string",
+      "pattern": "^ev_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      "description": "Developer 1 mints a UUIDv7 with ev_ prefix. Developer 2 never mints ids."
+    },
+    "record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "properties"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "label": { "type": "string", "minLength": 1 },
+        "properties": { "type": "object" },
+        "adjacent": {
+          "type": "array",
+          "items": { "type": "object" }
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "record_id",
+        "excerpt",
+        "source_uri",
+        "source_timestamp",
+        "content_hash"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/evidenceId" },
+        "record_id": { "type": "string", "minLength": 1 },
+        "excerpt": { "type": "string", "minLength": 1 },
+        "source_uri": { "type": "string", "minLength": 1 },
+        "source_timestamp": { "$ref": "#/$defs/rfc3339" },
+        "content_hash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "description": "sha256 hex of UTF-8 (excerpt + '\\n' + source_uri), prefixed with sha256:"
+        }
+      }
+    },
+    "success": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "tenant_id", "trace_id", "as_of", "records", "evidence"],
+      "properties": {
+        "ok": { "const": true },
+        "tenant_id": { "type": "string", "minLength": 1 },
+        "trace_id": { "type": "string", "minLength": 1 },
+        "as_of": { "$ref": "#/$defs/rfc3339" },
+        "records": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/record" }
+        },
+        "evidence": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidence" }
+        }
+      }
+    },
+    "failure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "error"],
+      "properties": {
+        "ok": { "const": false },
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code", "message"],
+          "properties": {
+            "code": { "type": "string", "minLength": 1 },
+            "message": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    }
+  }
+}

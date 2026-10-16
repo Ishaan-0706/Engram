@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://engram.dev/contracts/action-confirm.schema.json",
+  "title": "Action confirm request, receipt, and 409/410 bodies",
+  "oneOf": [
+    { "$ref": "#/$defs/request" },
+    { "$ref": "#/$defs/receipt" },
+    { "$ref": "#/$defs/inProgress" },
+    { "$ref": "#/$defs/http409" },
+    { "$ref": "#/$defs/http410" }
+  ],
+  "$defs": {
+    "uuidv7": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "snapshotHash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "turn_id",
+        "proposal_id",
+        "epoch",
+        "snapshot_hash",
+        "idempotency_key"
+      ],
+      "properties": {
+        "turn_id": { "$ref": "#/$defs/uuidv7" },
+        "proposal_id": { "$ref": "#/$defs/uuidv7" },
+        "epoch": { "type": "integer", "minimum": 0 },
+        "snapshot_hash": { "$ref": "#/$defs/snapshotHash" },
+        "idempotency_key": { "$ref": "#/$defs/uuidv7" }
+      }
+    },
+    "inProgress": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "idempotency_key"],
+      "properties": {
+        "status": { "const": "in_progress" },
+        "idempotency_key": { "$ref": "#/$defs/uuidv7" }
+      }
+    },
+    "receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "idempotency_key", "executed", "result"],
+      "properties": {
+        "status": { "const": "completed" },
+        "idempotency_key": { "$ref": "#/$defs/uuidv7" },
+        "executed": { "type": "boolean" },
+        "result": { "type": "object" }
+      }
+    },
+    "http409": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["error"],
+      "properties": {
+        "error": {
+          "enum": ["snapshot_mismatch", "conflict_in_progress", "stale_fence"]
+        },
+        "current_snapshot_hash": { "$ref": "#/$defs/snapshotHash" },
+        "epoch": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "http410": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["error"],
+      "properties": {
+        "error": { "const": "turn_gone" }
+      }
+    }
+  }
+}

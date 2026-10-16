@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://engram.dev/contracts/jwt-tenant-claims.schema.json",
+  "title": "JWT claims used for tenant resolution",
+  "description": "FastAPI middleware reads tid (tenant) and sub (user). Graph key is tenant:{tid}. org_id is not used.",
+  "type": "object",
+  "required": ["sub", "tid"],
+  "properties": {
+    "sub": { "type": "string", "minLength": 1 },
+    "tid": { "type": "string", "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$" },
+    "exp": { "type": "integer" },
+    "iat": { "type": "integer" }
+  },
+  "additionalProperties": true
+}

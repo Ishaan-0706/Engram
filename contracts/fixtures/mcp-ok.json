@@ -1,0 +1,25 @@
+{
+  "ok": true,
+  "tenant_id": "acme",
+  "trace_id": "tr-1",
+  "as_of": "2026-10-15T14:30:00Z",
+  "records": [
+    {
+      "id": "ticket_482",
+      "label": "Ticket",
+      "properties": {
+        "title": "Payments API migration"
+      }
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev_018f5e1b-7d4a-7c3e-8a12-4b6d9e0f1234",
+      "record_id": "ticket_482",
+      "excerpt": "Compatibility tests are failing on the new endpoint.",
+      "source_uri": "https://example.test/tickets/482",
+      "source_timestamp": "2026-10-15T14:30:00Z",
+      "content_hash": "sha256:5be55e16882367e4d0471f447acf1d52dd5e733b406d72a6b52cca1ffbc33636"
+    }
+  ]
+}

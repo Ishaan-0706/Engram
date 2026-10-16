@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://engram.dev/contracts/agent-turn-state.schema.json",
+  "title": "Redis AgentTurnState blob",
+  "description": "Value at turn:{turn_id}. TTL 7200s on the key. Heartbeat refreshes TTL only; it must not increment epoch.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "turn_id",
+    "tenant_id",
+    "user_id",
+    "status",
+    "epoch",
+    "working_set",
+    "tool_trace",
+    "evidence_bag",
+    "pending_proposal",
+    "synthesis_traces",
+    "fail_reason"
+  ],
+  "properties": {
+    "turn_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "tenant_id": { "type": "string", "minLength": 1 },
+    "user_id": { "type": "string", "minLength": 1 },
+    "status": {
+      "enum": [
+        "PLANNING",
+        "EXECUTING_TOOLS",
+        "AWAITING_CONFIRMATION",
+        "COMPLETED",
+        "FAILED"
+      ]
+    },
+    "epoch": { "type": "integer", "minimum": 0 },
+    "working_set": { "type": "object" },
+    "tool_trace": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["tool", "ok", "at"],
+        "properties": {
+          "tool": { "type": "string" },
+          "ok": { "type": "boolean" },
+          "at": { "type": "string", "format": "date-time" },
+          "error_code": { "type": "string" }
+        }
+      }
+    },
+    "evidence_bag": {
+      "type": "object",
+      "additionalProperties": { "$ref": "mcp-tool-response.schema.json#/$defs/evidence" },
+      "description": "Keyed by evidence.id. Cite only these keys."
+    },
+    "pending_proposal": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["proposal_id", "snapshot_hash", "action"],
+          "properties": {
+            "proposal_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "snapshot_hash": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            },
+            "action": { "type": "object" }
+          }
+        }
+      ]
+    },
+    "synthesis_traces": {
+      "type": "array",
+      "maxItems": 2,
+      "description": "Both attempts kept on FAILED until key TTL.",
+      "items": {
+        "type": "object",
+        "required": ["attempt", "ok", "payload"],
+        "properties": {
+          "attempt": { "type": "integer", "minimum": 1, "maximum": 2 },
+          "ok": { "type": "boolean" },
+          "payload": { "type": "object" }
+        }
+      }
+    },
+    "fail_reason": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "enum": [
+            "unverifiable_claim",
+            "stale_fence",
+            "lease_expired",
+            "execute_crash"
+          ]
+        }
+      ]
+    }
+  }
+}
