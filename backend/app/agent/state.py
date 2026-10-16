@@ -477,7 +477,7 @@ def get_redis_client() -> Any:
         return _DEFAULT_REDIS_CLIENT
     import redis
 
-    return redis.Redis()
+    return redis.from_url(settings.REDIS_URL)
 
 
 class ResumePayload(BaseModel):

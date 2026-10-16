@@ -16,7 +16,7 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP
 
 from app.core.config import settings
-from app.engram_graph_core.client import get_tenant_graph
+from app.engram_graph_core.client import MCP_QUERY_TIMEOUT_MS, get_tenant_graph
 from app.mcp_server.tools import _fail, _node, _ok, mcp
 
 log = logging.getLogger(__name__)

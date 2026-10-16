@@ -35,6 +35,7 @@ from app.agent.state import (
     save_turn,
     turn_key,
 )
+from app.engram_graph_core.client import resolve_tenant_graph_name
 from app.mcp_server.tools import (
     detect_documentation_drift,
     get_decision_history,
@@ -51,6 +52,102 @@ from app.engram_graph_core.client import get_tenant_graph, resolve_tenant_graph_
 # ---------------------------------------------------------------------------
 
 _MAX_TOOL_ROUNDS = 4          # architecture.md §6.3
+
+
+def extract_query_parameters(
+    user_query: str,
+    tenant_id: str,
+    working_set: dict[str, Any] | None = None,
+) -> dict[str, str | None]:
+    """Dynamically extract system_name, email, document_id, decision_id from query and context."""
+    # 1. Target email
+    email_match = re.search(r"[\w.+-]+@[\w-]+\.[\w.-]+", user_query)
+    email = email_match.group(0) if email_match else None
+    if not email and working_set:
+        for info in working_set.values():
+            if info.get("label") == "Person":
+                props = info.get("properties", {})
+                email = props.get("canonical_email") or props.get("email")
+                if email:
+                    break
+
+    # 2. Target document ID
+    doc_match = re.search(r"\b(doc_[a-zA-Z0-9_-]+)\b", user_query)
+    doc_id = doc_match.group(0) if doc_match else None
+    if not doc_id and working_set:
+        for rid, info in working_set.items():
+            if info.get("label") == "Document":
+                doc_id = rid
+                break
+
+    # 3. Target superseding decision ID
+    dec_match = re.search(r"\b(dec_[a-zA-Z0-9_-]+)\b", user_query)
+    dec_id = dec_match.group(0) if dec_match else None
+    if not dec_id and working_set:
+        for rid, info in working_set.items():
+            if info.get("label") == "Decision":
+                if info.get("properties", {}).get("status") == "active":
+                    dec_id = rid
+                    break
+                if not dec_id:
+                    dec_id = rid
+
+    # 4. Target system name
+    system_name: str | None = None
+
+    # Check query for explicit kebab-case system tokens (e.g., payment-gateway, auth-service)
+    kebab_candidates = re.findall(r"\b[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)+\b", user_query)
+    kebab_candidates = [
+        c for c in kebab_candidates
+        if not c.startswith(("doc_", "dec_", "ev_", "usr_", "rec_"))
+    ]
+
+    sys_word_match = re.search(
+        r"(?:system|service|gateway|engine)\s+['\"]?([a-zA-Z0-9_\-]+)['\"]?",
+        user_query,
+        re.I,
+    ) or re.search(
+        r"['\"]?([a-zA-Z0-9_\-]+)['\"]?\s+(?:system|service|gateway|engine)",
+        user_query,
+        re.I,
+    )
+    if sys_word_match:
+        cand = sys_word_match.group(1).strip()
+        if cand.lower() not in ("the", "a", "an", "this", "that", "owner", "drift", "rfc"):
+            system_name = cand
+
+    if not system_name and kebab_candidates:
+        system_name = kebab_candidates[0]
+
+    # Try matching against live tenant graph if available
+    if not system_name:
+        try:
+            from app.engram_graph_core.client import get_tenant_graph
+            graph = get_tenant_graph(tenant_id)
+            res = graph.query("MATCH (s:System) RETURN s.name", timeout=1000)
+            names = [row[0] for row in getattr(res, "result_set", []) if row and row[0]]
+            for name in names:
+                if name.lower() in user_query.lower() or name.replace("-", " ").lower() in user_query.lower():
+                    system_name = name
+                    break
+            if not system_name and len(names) == 1:
+                system_name = names[0]
+        except Exception:
+            pass
+
+    # Check working set for a System entity
+    if not system_name and working_set:
+        for rec_id, info in working_set.items():
+            if info.get("label") == "System":
+                system_name = info.get("properties", {}).get("name") or rec_id
+                break
+
+    return {
+        "system_name": system_name,
+        "email": email,
+        "document_id": doc_id,
+        "decision_id": dec_id,
+    }
 
 # Simple keyword → tool routing.  Matched in order; first match wins.
 _INTENT_RULES: list[tuple[re.Pattern[str], str]] = [
@@ -272,6 +369,7 @@ def run_agent_turn(
     # ------------------------------------------------------------------
     # 1. Fetch or initialise turn state
     # ------------------------------------------------------------------
+    graph_name = resolve_tenant_graph_name(tenant_id)
     turn = get_turn(redis_client, tenant_id, session_id)
 
     if turn is None:
@@ -284,8 +382,8 @@ def run_agent_turn(
         )
         save_turn(redis_client, turn, tenant_id, session_id)
         log.info(
-            "orchestrator: new turn tenant=%s session=%s epoch=%d",
-            tenant_id, session_id, client_epoch,
+            "orchestrator: new turn tenant=%s (graph=%s) session=%s epoch=%d",
+            tenant_id, graph_name, session_id, client_epoch,
         )
 
     stored_epoch: int = turn["epoch"]
@@ -318,7 +416,8 @@ def run_agent_turn(
     # ------------------------------------------------------------------
     # 4. Call the MCP read tool (up to _MAX_TOOL_ROUNDS respected by contract)
     # ------------------------------------------------------------------
-    resolved_system = system_name or extract_target_system(tenant_id, user_query)
+    extracted_params = extract_query_parameters(user_query, tenant_id, turn.get("working_set"))
+    resolved_system = system_name or extract_target_system(tenant_id, user_query) or extracted_params.get("system_name") or ""
     tool_response = _call_tool(tenant_id, tool_name, resolved_system, _tools)
 
     # ------------------------------------------------------------------
@@ -426,24 +525,28 @@ def run_agent_turn(
     if _needs_mutation(user_query, tool_name):
         proposal_id = generate_uuidv7()
         snapshot_hash = _snapshot_from_records(records)
+        extracted = extract_query_parameters(user_query, tenant_id, working_set)
+        target_system = system_name or extracted.get("system_name") or resolved_system
 
-        target_email = extract_target_email(user_query, records)
-        doc_id = extract_target_document_id(user_query, records)
-        active_dec_id = extract_target_decision_id(user_query, records)
+        target_email = extract_target_email(user_query, records) or extracted.get("email")
+        doc_id = extract_target_document_id(user_query, records) or extracted.get("document_id")
+        active_dec_id = extract_target_decision_id(user_query, records) or extracted.get("decision_id")
+
+        action_payload: dict[str, Any] = {
+            "type": "documentation_drift_fix" if tool_name == "documentation_drift"
+                    else "reassign_owner",
+            "system_name": target_system,
+            "tool_name": tool_name,
+            "record_ids": list(record_ids),
+            "document_id": doc_id,
+            "superseding_decision_id": active_dec_id,
+            "new_owner_email": target_email,
+        }
 
         pending_proposal = {
             "proposal_id": proposal_id,
             "snapshot_hash": snapshot_hash,
-            "action": {
-                "type": "documentation_drift_fix" if tool_name == "documentation_drift"
-                        else "reassign_owner",
-                "system_name": resolved_system,
-                "tool_name": tool_name,
-                "record_ids": list(record_ids),
-                "document_id": doc_id,
-                "superseding_decision_id": active_dec_id,
-                "new_owner_email": target_email,
-            },
+            "action": action_payload,
         }
 
         awaiting_turn = cas_transition(

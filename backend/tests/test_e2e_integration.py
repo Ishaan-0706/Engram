@@ -26,6 +26,8 @@ from typing import Generator
 from fastapi.testclient import TestClient
 import pytest
 
+pytest.importorskip("falkordb")
+
 from app.agent.state import generate_uuidv7
 from app.engram_graph_core.client import get_tenant_graph
 from app.main import app

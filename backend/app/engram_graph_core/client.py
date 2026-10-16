@@ -29,7 +29,7 @@ class TenantGraph:
         self,
         cypher: str,
         params: dict[str, Any] | None = None,
-        timeout: int = MCP_QUERY_TIMEOUT_MS,
+        timeout: int = settings.GRAPH_QUERY_TIMEOUT_MS,
     ) -> Any:
         return self._graph.query(cypher, params or {}, timeout=timeout)
 

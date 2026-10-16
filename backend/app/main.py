@@ -35,6 +35,8 @@ from app.agent.state import (
 )
 from app.mcp_server.action_tools import mark_document_updated, reassign_system_owner
 
+from app.core.config import settings
+
 log = logging.getLogger(__name__)
 
 from app.core.config import settings
@@ -49,7 +51,7 @@ app = FastAPI(title="Company Brain API", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=CORS_ORIGINS,
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -187,10 +189,9 @@ def api_confirm(
     action_type: str = action_meta.get("type", "")
     system_name: str = action_meta.get("system_name", "")
     if not system_name:
-        ws = turn.get("working_set") or {}
-        for rid, rinfo in ws.items():
-            if rinfo.get("label") == "System" and rinfo.get("properties", {}).get("name"):
-                system_name = rinfo["properties"]["name"]
+        for rec_id, rec_info in (turn.get("working_set") or {}).items():
+            if rec_info.get("label") == "System":
+                system_name = rec_info.get("properties", {}).get("name") or rec_id
                 break
 
     def _fetch_live_ats() -> dict[str, str]:

@@ -1,7 +1,7 @@
-from __future__ import annotations
+from app.core.config import settings
 
-TURN_TTL_SECONDS = 7200
-LOCK_TTL_SECONDS = 30
+TURN_TTL_SECONDS = settings.TURN_TTL_SECONDS
+LOCK_TTL_SECONDS = settings.PROPOSAL_LOCK_TTL_SECONDS
 TURN_PREFIX = "turn:"
 LOCK_PREFIX = "lock:"
 IDEMPOTENCY_PREFIX = "idempotency:"

@@ -510,3 +510,97 @@ class TestCORS:
         # /api/resume is POST-only → 405, but CORS header still set
         origin = resp.headers.get("access-control-allow-origin", "")
         assert "localhost:3001" in origin or origin == "*"
+
+
+# ---------------------------------------------------------------------------
+# Centralized Settings & Dynamic Extraction Tests
+# ---------------------------------------------------------------------------
+
+class TestCentralizedSettings:
+    def test_settings_defaults(self):
+        from app.core.config import settings
+
+        assert settings.FALKORDB_HOST == "localhost"
+        assert settings.FALKORDB_PORT == 6379
+        assert settings.REDIS_URL == "redis://localhost:6379/0"
+        assert "http://localhost:3000" in settings.CORS_ORIGINS
+        assert settings.TURN_TTL_SECONDS == 7200
+        assert settings.PROPOSAL_LOCK_TTL_SECONDS == 30
+        assert settings.GRAPH_QUERY_TIMEOUT_MS == 2500
+        assert settings.LLM_MODEL == "gpt-4o"
+
+
+class TestDynamicParameterExtraction:
+    def test_extract_kebab_system_name(self):
+        from app.agent.orchestrator import extract_query_parameters
+
+        params = extract_query_parameters("who owns auth-service?", "acme")
+        assert params["system_name"] == "auth-service"
+
+        params2 = extract_query_parameters("check drift for billing-engine", "acme")
+        assert params2["system_name"] == "billing-engine"
+
+    def test_extract_email_and_ids(self):
+        from app.agent.orchestrator import extract_query_parameters
+
+        query = "reassign system payment-gateway to priya@acme.dev for doc_auth_rfc and dec_ed25519_local"
+        params = extract_query_parameters(query, "acme")
+        assert params["system_name"] == "payment-gateway"
+        assert params["email"] == "priya@acme.dev"
+        assert params["document_id"] == "doc_auth_rfc"
+        assert params["decision_id"] == "dec_ed25519_local"
+
+    def test_context_fallback_extraction(self):
+        from app.agent.orchestrator import extract_query_parameters
+
+        ws = {
+            "rec_person_1": {"label": "Person", "properties": {"canonical_email": "sarah@acme.dev"}},
+            "rec_doc_1": {"label": "Document", "properties": {}},
+            "rec_dec_1": {"label": "Decision", "properties": {"status": "active"}},
+            "rec_sys_1": {"label": "System", "properties": {"name": "metrics-collector"}},
+        }
+        params = extract_query_parameters("update active policy", "acme", working_set=ws)
+        assert params["system_name"] == "metrics-collector"
+        assert params["email"] == "sarah@acme.dev"
+        assert params["document_id"] == "rec_doc_1"
+        assert params["decision_id"] == "rec_dec_1"
+
+
+class TestTenantGraphResolution:
+    def test_resolve_tenant_graph_name(self):
+        from app.engram_graph_core.client import resolve_tenant_graph_name
+
+        assert resolve_tenant_graph_name("acme_payments") == "tenant_acme_payments"
+        assert resolve_tenant_graph_name("tenant_acme_payments") == "tenant_acme_payments"
+        with pytest.raises(ValueError):
+            resolve_tenant_graph_name("")
+
+
+class TestDynamicSystemToolDispatch:
+    def test_custom_system_dispatched_to_tool(self, fake_r):
+        dispatched_systems = []
+        env = _good_envelope()
+
+        def _mock_ownership(tid, sys):
+            dispatched_systems.append(sys)
+            return env
+
+        tools = {
+            "get_decision_history": lambda tid, sys: env,
+            "detect_documentation_drift": lambda tid, sys: env,
+            "get_system_ownership": _mock_ownership,
+        }
+
+        result = run_agent_turn(
+            tenant_id="acme",
+            session_id="s_custom_sys",
+            user_query="who is responsible for auth-service?",
+            client_epoch=0,
+            redis_client=fake_r,
+            synthesize_fn=_synth_good,
+            _tools=tools,
+        )
+
+        assert result["status"] == "COMPLETED"
+        assert dispatched_systems == ["auth-service"]
+

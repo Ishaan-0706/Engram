@@ -12,7 +12,7 @@ from jsonschema import Draft202012Validator
 from mcp.server.fastmcp import FastMCP
 
 from app.core.config import settings
-from app.engram_graph_core.client import get_tenant_graph
+from app.engram_graph_core.client import MCP_QUERY_TIMEOUT_MS, get_tenant_graph
 
 ENVELOPE_SCHEMA_PATH = (
     Path(__file__).resolve().parents[3] / "shared/contracts/mcp_envelope.schema.json"
