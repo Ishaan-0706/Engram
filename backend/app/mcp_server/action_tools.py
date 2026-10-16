@@ -28,23 +28,22 @@ log = logging.getLogger(__name__)
 # nodes.  FalkorDB does not support multi-statement transactions, so we merge
 # close + create into a single atomic GRAPH.QUERY.
 REASSIGN_OWNER_CYPHER = """\
-MATCH (p:Person {canonical_email: $new_owner_email})
+MATCH (new:Person {canonical_email: $email})
 MATCH (s:System {name: $system_name})
-OPTIONAL MATCH (old_owner:Person)-[r:OWNS]->(s)
+OPTIONAL MATCH (old:Person)-[r:OWNS]->(s)
   WHERE r.valid_to IS NULL
 FOREACH (_ IN CASE WHEN r IS NOT NULL THEN [1] ELSE [] END |
   SET r.valid_to = $now_ms
 )
-WITH p, s
-CREATE (p)-[:OWNS {valid_from: $now_ms, valid_to: null, updated_via: 'agent_proposal'}]->(s)
-RETURN p, s
+CREATE (new)-[r2:OWNS {valid_from: $now_ms, valid_to: null, updated_via: 'agent_proposal'}]->(s)
+RETURN new, s
 """
 
 MARK_DOCUMENT_UPDATED_CYPHER = """\
 MATCH (doc:Document {id: $document_id})
-MATCH (dec:Decision  {id: $superseding_decision_id})
-SET doc.status = 'updated'
-MERGE (doc)-[:ALIGNED_WITH]->(dec)
+MATCH (dec:Decision {id: $superseding_decision_id})
+SET doc.status = 'updated', doc.last_reviewed_at = $now_ms
+CREATE (doc)-[:ALIGNED_WITH {created_at: $now_ms}]->(dec)
 RETURN doc
 """
 
@@ -104,6 +103,7 @@ def reassign_system_owner(
             REASSIGN_OWNER_CYPHER,
             {
                 "system_name": system_name,
+                "email": new_owner_email,
                 "new_owner_email": new_owner_email,
                 "now_ms": now_ms,
             },
@@ -165,12 +165,14 @@ def mark_document_updated(
         return _fail("not_found", msg)
 
     # --- atomic mutation ----------------------------------------------------
+    now_ms = int(time.time() * 1000)
     try:
         result = graph.query(
             MARK_DOCUMENT_UPDATED_CYPHER,
             {
                 "document_id": document_id,
                 "superseding_decision_id": superseding_decision_id,
+                "now_ms": now_ms,
             },
             timeout=MCP_QUERY_TIMEOUT_MS,
         )
@@ -186,10 +188,11 @@ def mark_document_updated(
             records.append(doc)
 
     log.info(
-        "mark_document_updated: tenant=%s doc=%s superseding_decision=%s",
+        "mark_document_updated: tenant=%s doc=%s superseding_decision=%s now_ms=%d",
         tenant_id,
         document_id,
         superseding_decision_id,
+        now_ms,
     )
 
     try:

@@ -1,11 +1,17 @@
-from __future__ import annotations
-
+import json
+from pathlib import Path
 from types import SimpleNamespace
 
+import jsonschema
 import pytest
 
 from app.engram_graph_core.client import MCP_QUERY_TIMEOUT_MS, tenant_graph_name
-from app.mcp_server import tools as mcp_tools
+from app.mcp_server import action_tools, tools as mcp_tools
+
+ENVELOPE_SCHEMA_PATH = (
+    Path(__file__).resolve().parents[2] / "shared/contracts/mcp_envelope.schema.json"
+)
+ENVELOPE_SCHEMA = json.loads(ENVELOPE_SCHEMA_PATH.read_text())
 
 
 class _Node:
@@ -66,7 +72,7 @@ def test_decision_history_envelope(monkeypatch):
     assert labels == {"System", "Decision"}
     assert payload["evidence"][0]["id"] == "evi_018f_latency_auth"
     assert payload["evidence"][0]["content_hash"].startswith("sha256:")
-    mcp_tools._ENVELOPE_VALIDATOR.validate(payload)
+    jsonschema.validate(instance=payload, schema=ENVELOPE_SCHEMA)
 
 
 def test_drift_and_ownership(monkeypatch):
@@ -103,24 +109,65 @@ def test_drift_and_ownership(monkeypatch):
     drift = mcp_tools.detect_documentation_drift("acme_payments", "payment-gateway")
     assert {r["label"] for r in drift["records"]} >= {"Document", "Decision", "System"}
     assert drift["evidence"]
+    jsonschema.validate(instance=drift, schema=ENVELOPE_SCHEMA)
+
     own = mcp_tools.get_system_ownership("acme_payments", "payment-gateway")
     names = {r["label"]: r["properties"].get("display_name") or r["properties"].get("name") for r in own["records"]}
     assert names["Person"] == "Priya Nair"
     assert names["Team"] == "Core Payments"
     assert own["evidence"] == []
+    jsonschema.validate(instance=own, schema=ENVELOPE_SCHEMA)
 
 
 @pytest.mark.integration
 def test_live_tenant_acme_payments():
     pytest.importorskip("falkordb")
+
+    # 1. get_decision_history
     history = mcp_tools.get_decision_history("acme_payments", "payment-gateway")
     if not history.get("ok"):
         pytest.skip(history["error"]["message"])
     assert any(r["label"] == "Decision" for r in history["records"])
     assert any(e["id"] == "evi_018f_latency_auth" for e in history["evidence"])
+    jsonschema.validate(instance=history, schema=ENVELOPE_SCHEMA)
+
+    # 2. detect_documentation_drift
     drift = mcp_tools.detect_documentation_drift("acme_payments", "payment-gateway")
     assert drift["ok"]
     assert any(r["id"] == "doc_auth_rfc" for r in drift["records"])
+    jsonschema.validate(instance=drift, schema=ENVELOPE_SCHEMA)
+
+    # 3. get_system_ownership
     own = mcp_tools.get_system_ownership("acme_payments", "payment-gateway")
     assert own["ok"]
-    assert any(r["id"] == "usr_018f_priya" for r in own["records"])
+    assert any(r["id"] in {"usr_018f_priya", "usr_018f_aarav"} for r in own["records"])
+    jsonschema.validate(instance=own, schema=ENVELOPE_SCHEMA)
+
+    # 4. reassign_system_owner
+    current_person = next((r for r in own["records"] if r["label"] == "Person"), None)
+    current_email = (
+        current_person["properties"].get("canonical_email")
+        if current_person
+        else "priya@acme.com"
+    )
+    target_email = "aarav@acme.com" if current_email == "priya@acme.com" else "priya@acme.com"
+
+    reassigned = action_tools.reassign_system_owner(
+        "acme_payments", "payment-gateway", target_email
+    )
+    assert reassigned["ok"] is True
+    assert any(
+        r["label"] == "Person" and r["properties"].get("canonical_email") == target_email
+        for r in reassigned["records"]
+    )
+    assert any(r["label"] == "System" for r in reassigned["records"])
+    assert reassigned["evidence"] == []
+    jsonschema.validate(instance=reassigned, schema=ENVELOPE_SCHEMA)
+
+    # Revert ownership back to restore initial state
+    restored = action_tools.reassign_system_owner(
+        "acme_payments", "payment-gateway", current_email or "priya@acme.com"
+    )
+    assert restored["ok"] is True
+    jsonschema.validate(instance=restored, schema=ENVELOPE_SCHEMA)
+
