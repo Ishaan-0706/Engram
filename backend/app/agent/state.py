@@ -28,9 +28,11 @@ except ImportError:
         return f"{time_high:08x}-{time_mid:04x}-{ver_and_rand:04x}-{var_and_rand:02x}{rand_bytes[3]:02x}-{rand_bytes[4:10].hex()}"
 
 
-TURN_TTL_SECONDS = 7200  # 2 hours
-LOCK_TTL_SECONDS = 30  # 30 seconds
-IDEMPOTENCY_TTL_SECONDS = 7200
+from app.core.config import settings
+
+TURN_TTL_SECONDS = settings.TURN_TTL_SECONDS
+LOCK_TTL_SECONDS = settings.PROPOSAL_LOCK_TTL_SECONDS
+IDEMPOTENCY_TTL_SECONDS = settings.TURN_TTL_SECONDS
 
 TURN_PREFIX = "turn:"
 LOCK_PREFIX = "lock:"

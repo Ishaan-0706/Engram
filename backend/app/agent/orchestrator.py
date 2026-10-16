@@ -43,11 +43,13 @@ from app.mcp_server.tools import (
 
 log = logging.getLogger(__name__)
 
+from app.core.config import settings
+from app.engram_graph_core.client import get_tenant_graph, resolve_tenant_graph_name
+
 # ---------------------------------------------------------------------------
-# Constants
+# Constants & Dynamic Entity Extraction
 # ---------------------------------------------------------------------------
 
-_DEFAULT_SYSTEM = "payment-gateway"
 _MAX_TOOL_ROUNDS = 4          # architecture.md §6.3
 
 # Simple keyword → tool routing.  Matched in order; first match wins.
@@ -56,9 +58,77 @@ _INTENT_RULES: list[tuple[re.Pattern[str], str]] = [
                 re.I), "system_ownership"),
     (re.compile(r"drift|stale|rfc|document|outdated|aligned",
                 re.I), "documentation_drift"),
-    (re.compile(r"decision|auth|architecture|why|jwt|ed25519|token|gateway",
+    (re.compile(r"decision|auth|architecture|why|jwt|ed25519|token|gateway|kafka|kraft|stream",
                 re.I), "decision_history"),
 ]
+
+
+def extract_target_system(tenant_id: str, query: str) -> str:
+    """Dynamically determine the target system name from query and tenant graph."""
+    q_lower = query.lower()
+    slug_match = re.search(r"['\"]?([a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)+)['\"]?", query)
+    mentioned_slug = slug_match.group(1) if slug_match else None
+
+    try:
+        graph = get_tenant_graph(tenant_id)
+        res = graph.query("MATCH (s:System) RETURN s.name", timeout=settings.GRAPH_QUERY_TIMEOUT_MS)
+        system_names = [row[0] for row in (getattr(res, "result_set", None) or []) if row and row[0]]
+
+        for sname in system_names:
+            s_clean = sname.lower()
+            if s_clean in q_lower or s_clean.replace("-", " ") in q_lower or s_clean.replace("_", " ") in q_lower:
+                return sname
+
+        if mentioned_slug:
+            return mentioned_slug
+
+        if len(system_names) == 1:
+            return system_names[0]
+        if system_names:
+            return system_names[0]
+    except Exception as exc:
+        log.debug("System resolution from graph failed: %s", exc)
+
+    return mentioned_slug or ""
+
+
+def extract_target_email(query: str, records: list[dict] | None = None) -> str | None:
+    """Extract target email address from query string or records."""
+    match = re.search(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+", query)
+    if match:
+        return match.group(0)
+    if records:
+        for r in records:
+            if r.get("label") == "Person" and "canonical_email" in r.get("properties", {}):
+                return r["properties"]["canonical_email"]
+    return None
+
+
+def extract_target_document_id(query: str, records: list[dict] | None = None) -> str | None:
+    """Extract target document ID from query string or records."""
+    match = re.search(r"\b(doc_[a-zA-Z0-9_-]+)\b", query)
+    if match:
+        return match.group(1)
+    if records:
+        for r in records:
+            if r.get("label") == "Document":
+                return r.get("id")
+    return None
+
+
+def extract_target_decision_id(query: str, records: list[dict] | None = None) -> str | None:
+    """Extract target decision ID from query string or records."""
+    match = re.search(r"\b(dec_[a-zA-Z0-9_-]+)\b", query)
+    if match:
+        return match.group(1)
+    if records:
+        for r in records:
+            if r.get("label") == "Decision" and r.get("properties", {}).get("status") == "active":
+                return r.get("id")
+        for r in records:
+            if r.get("label") == "Decision":
+                return r.get("id")
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -145,8 +215,7 @@ def _needs_mutation(query: str, tool_name: str) -> bool:
 
 def _snapshot_from_records(records: list[dict]) -> str:
     """Compute a deterministic snapshot hash from the record ids + labels."""
-    items = sorted((r["id"], r.get("label", "")) for r in records)
-    return compute_snapshot_hash({f"{label}:{rid}": "present" for rid, label in items})
+    return compute_snapshot_hash({r["id"]: r.get("label", "") for r in records})
 
 
 # ---------------------------------------------------------------------------
@@ -161,7 +230,7 @@ def run_agent_turn(
     *,
     redis_client: Any,
     user_id: str = "anonymous",
-    system_name: str = _DEFAULT_SYSTEM,
+    system_name: str | None = None,
     synthesize_fn: Any | None = None,
     _tools: dict[str, Any] | None = None,
 ) -> dict:
@@ -182,7 +251,7 @@ def run_agent_turn(
     user_id:
         Acting user (resolved from JWT in the HTTP layer).
     system_name:
-        FalkorDB system node to query (defaults to ``payment-gateway``).
+        FalkorDB system node to query (dynamically resolved if omitted).
     synthesize_fn:
         Injectable LLM callable for unit tests.  Receives
         ``(prompt, allowed_ids) -> dict``.
@@ -249,7 +318,8 @@ def run_agent_turn(
     # ------------------------------------------------------------------
     # 4. Call the MCP read tool (up to _MAX_TOOL_ROUNDS respected by contract)
     # ------------------------------------------------------------------
-    tool_response = _call_tool(tenant_id, tool_name, system_name, _tools)
+    resolved_system = system_name or extract_target_system(tenant_id, user_query)
+    tool_response = _call_tool(tenant_id, tool_name, resolved_system, _tools)
 
     # ------------------------------------------------------------------
     # 5. Ingest tool output
@@ -286,6 +356,12 @@ def run_agent_turn(
     evidence_bag.update(evidence_new)
 
     record_ids: set[str] = set(working_set.keys())
+
+    if not resolved_system:
+        for rec in records:
+            if rec.get("label") == "System" and rec.get("properties", {}).get("name"):
+                resolved_system = rec["properties"]["name"]
+                break
 
     tool_trace = list(turn.get("tool_trace") or [])
     tool_trace.append({"tool": tool_name, "ok": True, "at": _utcnow()})
@@ -351,15 +427,22 @@ def run_agent_turn(
         proposal_id = generate_uuidv7()
         snapshot_hash = _snapshot_from_records(records)
 
+        target_email = extract_target_email(user_query, records)
+        doc_id = extract_target_document_id(user_query, records)
+        active_dec_id = extract_target_decision_id(user_query, records)
+
         pending_proposal = {
             "proposal_id": proposal_id,
             "snapshot_hash": snapshot_hash,
             "action": {
                 "type": "documentation_drift_fix" if tool_name == "documentation_drift"
                         else "reassign_owner",
-                "system_name": system_name,
+                "system_name": resolved_system,
                 "tool_name": tool_name,
                 "record_ids": list(record_ids),
+                "document_id": doc_id,
+                "superseding_decision_id": active_dec_id,
+                "new_owner_email": target_email,
             },
         }
 

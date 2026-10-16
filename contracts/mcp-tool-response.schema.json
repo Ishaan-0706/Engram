@@ -14,8 +14,8 @@
     },
     "evidenceId": {
       "type": "string",
-      "pattern": "^ev_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
-      "description": "Developer 1 mints a UUIDv7 with ev_ prefix. Developer 2 never mints ids."
+      "pattern": "^(ev_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|evi_[a-zA-Z0-9_-]+)$",
+      "description": "Developer 1 mints a UUIDv7 with ev_ prefix (or evi_ prefix in seeded fixtures). Developer 2 never mints ids."
     },
     "record": {
       "type": "object",

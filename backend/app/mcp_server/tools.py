@@ -11,7 +11,8 @@ from typing import Any
 from jsonschema import Draft202012Validator
 from mcp.server.fastmcp import FastMCP
 
-from app.engram_graph_core.client import MCP_QUERY_TIMEOUT_MS, get_tenant_graph
+from app.core.config import settings
+from app.engram_graph_core.client import get_tenant_graph
 
 ENVELOPE_SCHEMA_PATH = (
     Path(__file__).resolve().parents[3] / "shared/contracts/mcp_envelope.schema.json"
@@ -143,7 +144,7 @@ def _ok(tenant_id: str, records: list[dict[str, Any]], evidence: list[dict[str, 
 
 
 def _rows(graph: Any, cypher: str, system_name: str) -> list[list[Any]]:
-    result = graph.query(cypher, {"system_name": system_name}, timeout=MCP_QUERY_TIMEOUT_MS)
+    result = graph.query(cypher, {"system_name": system_name}, timeout=settings.GRAPH_QUERY_TIMEOUT_MS)
     return list(getattr(result, "result_set", None) or [])
 
 

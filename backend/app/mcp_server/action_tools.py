@@ -15,7 +15,8 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-from app.engram_graph_core.client import MCP_QUERY_TIMEOUT_MS, get_tenant_graph
+from app.core.config import settings
+from app.engram_graph_core.client import get_tenant_graph
 from app.mcp_server.tools import _fail, _node, _ok, mcp
 
 log = logging.getLogger(__name__)
@@ -58,7 +59,7 @@ _DECISION_EXISTS = "MATCH (dec:Decision {id: $id}) RETURN dec.id LIMIT 1"
 
 
 def _exists(graph: Any, cypher: str, params: dict[str, Any]) -> bool:
-    result = graph.query(cypher, params, timeout=MCP_QUERY_TIMEOUT_MS)
+    result = graph.query(cypher, params, timeout=settings.GRAPH_QUERY_TIMEOUT_MS)
     rows = getattr(result, "result_set", None) or []
     return len(rows) > 0
 
@@ -107,7 +108,7 @@ def reassign_system_owner(
                 "new_owner_email": new_owner_email,
                 "now_ms": now_ms,
             },
-            timeout=MCP_QUERY_TIMEOUT_MS,
+            timeout=settings.GRAPH_QUERY_TIMEOUT_MS,
         )
     except Exception as exc:
         log.error("reassign_system_owner: mutation failed – %s", exc)
@@ -174,7 +175,7 @@ def mark_document_updated(
                 "superseding_decision_id": superseding_decision_id,
                 "now_ms": now_ms,
             },
-            timeout=MCP_QUERY_TIMEOUT_MS,
+            timeout=settings.GRAPH_QUERY_TIMEOUT_MS,
         )
     except Exception as exc:
         log.error("mark_document_updated: mutation failed – %s", exc)

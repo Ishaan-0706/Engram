@@ -37,14 +37,13 @@ from app.mcp_server.action_tools import mark_document_updated, reassign_system_o
 
 log = logging.getLogger(__name__)
 
+from app.core.config import settings
+
 # ---------------------------------------------------------------------------
 # Application factory
 # ---------------------------------------------------------------------------
 
-CORS_ORIGINS = [
-    "http://localhost:3000",
-    "http://localhost:3001",
-]
+CORS_ORIGINS = settings.CORS_ORIGINS
 
 app = FastAPI(title="Company Brain API", version="0.1.0")
 
@@ -74,9 +73,7 @@ def _get_redis() -> Any:
     global _redis_client
     if _redis_client is not None:
         return _redis_client
-    host = os.environ.get("REDIS_HOST", "localhost")
-    port = int(os.environ.get("REDIS_PORT", "6379"))
-    return redis_lib.Redis(host=host, port=port, decode_responses=False)
+    return redis_lib.from_url(settings.REDIS_URL, decode_responses=False)
 
 
 def get_redis(request: Request) -> Any:  # FastAPI dependency
@@ -186,10 +183,15 @@ def api_confirm(
     if not proposal or proposal.get("proposal_id") != body.proposal_id:
         raise HTTPException(status_code=409, detail={"error": "stale_fence", "epoch": turn["epoch"]})
 
-    # Determine which action to execute from proposal metadata
     action_meta: dict = proposal.get("action", {})
     action_type: str = action_meta.get("type", "")
-    system_name: str = action_meta.get("system_name", "payment-gateway")
+    system_name: str = action_meta.get("system_name", "")
+    if not system_name:
+        ws = turn.get("working_set") or {}
+        for rid, rinfo in ws.items():
+            if rinfo.get("label") == "System" and rinfo.get("properties", {}).get("name"):
+                system_name = rinfo["properties"]["name"]
+                break
 
     def _fetch_live_ats() -> dict[str, str]:
         """Re-read updated_at proxies from the working_set records."""
@@ -208,6 +210,13 @@ def api_confirm(
         elif action_type in ("documentation_drift_fix", "mark_document_updated"):
             doc_id = action_meta.get("document_id", "")
             decision_id = action_meta.get("superseding_decision_id", "")
+            if not doc_id or not decision_id:
+                ws = turn.get("working_set") or {}
+                for rid, rinfo in ws.items():
+                    if rinfo.get("label") == "Document" and not doc_id:
+                        doc_id = rid
+                    if rinfo.get("label") == "Decision" and rinfo.get("properties", {}).get("status") == "active" and not decision_id:
+                        decision_id = rid
             if not doc_id or not decision_id:
                 raise HTTPException(status_code=422, detail="document_id or superseding_decision_id missing")
             result = mark_document_updated(tenant, doc_id, decision_id)

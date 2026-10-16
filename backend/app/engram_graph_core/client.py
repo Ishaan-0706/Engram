@@ -1,19 +1,23 @@
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from typing import Any
 
-MCP_QUERY_TIMEOUT_MS = 2500
+from app.core.config import settings
+
+MCP_QUERY_TIMEOUT_MS = settings.GRAPH_QUERY_TIMEOUT_MS
 
 
-def tenant_graph_name(tenant_id: str) -> str:
+def resolve_tenant_graph_name(tenant_id: str) -> str:
     tid = (tenant_id or "").strip()
     if not tid or any(c in tid for c in " \n\t"):
         raise ValueError("tenant_id must be a non-empty token")
     if tid.startswith("tenant_") or ":" in tid:
         return tid
     return f"tenant_{tid}"
+
+
+tenant_graph_name = resolve_tenant_graph_name
 
 
 @dataclass
@@ -31,9 +35,9 @@ class TenantGraph:
 
 
 def get_tenant_graph(tenant_id: str) -> TenantGraph:
-    name = tenant_graph_name(tenant_id)
-    host = os.environ.get("FALKORDB_HOST", "localhost")
-    port = int(os.environ.get("FALKORDB_PORT", "6379"))
+    name = resolve_tenant_graph_name(tenant_id)
+    host = settings.FALKORDB_HOST
+    port = settings.FALKORDB_PORT
     try:
         from falkordb import FalkorDB
     except ImportError as exc:
