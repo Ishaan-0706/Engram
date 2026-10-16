@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "execution_step": "step-03-execute.md",
+  "tasks": [
+    {
+      "id": "client",
+      "objective": "get_tenant_graph(tenant_id) selects FalkorDB graph with 2500ms query timeout",
+      "dependencies": [],
+      "write_set": ["backend/app/engram_graph_core/client.py", "backend/app/engram_graph_core/__init__.py"],
+      "status": "pending"
+    },
+    {
+      "id": "tools",
+      "objective": "Three FastMCP tools return mcp_envelope records+evidence",
+      "dependencies": ["client"],
+      "write_set": ["backend/app/mcp_server/tools.py", "shared/contracts/mcp_envelope.schema.json"],
+      "status": "pending"
+    },
+    {
+      "id": "tests",
+      "objective": "Pytest envelope handlers; live query against tenant_acme_payments when up",
+      "dependencies": ["tools"],
+      "write_set": ["backend/tests/test_mcp_tools.py"],
+      "status": "pending"
+    }
+  ]
+}
