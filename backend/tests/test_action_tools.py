@@ -54,7 +54,18 @@ class TestReassignSystemOwner:
                 "RETURN s.id LIMIT": [
                     [_Node("System", id="sys_payment_gw", name="payment-gateway")]
                 ],
-                # mutation result: uses RETURN p, s
+                # mutation result: uses RETURN new, s (or RETURN p, s)
+                "RETURN new, s": [
+                    [
+                        _Node(
+                            "Person",
+                            id="usr_018f_priya",
+                            canonical_email="priya@acme.dev",
+                            display_name="Priya Nair",
+                        ),
+                        _Node("System", id="sys_payment_gw", name="payment-gateway"),
+                    ]
+                ],
                 "RETURN p, s": [
                     [
                         _Node(
