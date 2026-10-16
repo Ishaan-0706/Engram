@@ -176,7 +176,7 @@ export const CenterPane: React.FC<CenterPaneProps> = ({
       const isDimmed = highlightSet.isHoverActive && !isPathLink;
 
       ctx.save();
-      ctx.globalAlpha = isDimmed ? 0.08 : (isPathLink ? 1.0 : 0.6);
+      ctx.globalAlpha = isDimmed ? 0.15 : (isPathLink ? 1.0 : 0.6);
 
       ctx.beginPath();
       ctx.moveTo(link.source.x, link.source.y);

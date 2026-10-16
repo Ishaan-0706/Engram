@@ -26,9 +26,13 @@ interface LeftPaneProps {
   onSendQuery: (query: string) => void;
   onSelectEvidence: (evidence: EvidenceItem) => void;
   onHighlightEvidence: (evidenceId: string | null) => void;
-  onQuickDemo1: () => void;
-  onQuickDemo2: () => void;
-  onQuickDemo3: () => void;
+  onDemoScenario1: () => void;
+  onDemoScenario2: () => void;
+  onDemoScenario3: () => void;
+  onSimulateStaleSnapshot?: () => void;
+  onQuickDemo1?: () => void;
+  onQuickDemo2?: () => void;
+  onQuickDemo3?: () => void;
 }
 
 export const LeftPane: React.FC<LeftPaneProps> = ({
@@ -38,6 +42,10 @@ export const LeftPane: React.FC<LeftPaneProps> = ({
   onSendQuery,
   onSelectEvidence,
   onHighlightEvidence,
+  onDemoScenario1,
+  onDemoScenario2,
+  onDemoScenario3,
+  onSimulateStaleSnapshot,
   onQuickDemo1,
   onQuickDemo2,
   onQuickDemo3,
@@ -54,10 +62,15 @@ export const LeftPane: React.FC<LeftPaneProps> = ({
   const evidenceBag = turnState?.evidence_bag || {};
   const evidenceIds = Object.keys(evidenceBag);
 
+  const handleRunScenario1 = onDemoScenario1 || onQuickDemo1;
+  const handleRunScenario2 = onDemoScenario2 || onQuickDemo2;
+  const handleRunScenario3 = onDemoScenario3 || onQuickDemo3;
+  const handleSimulateStale = onSimulateStaleSnapshot || onQuickDemo3;
+
   return (
     <aside className="w-[420px] min-w-[420px] max-w-[420px] border-r border-slate-800 bg-slate-950 flex flex-col h-[calc(100vh-3.5rem)] select-text relative">
       {/* Pane Header */}
-      <div className="p-3.5 border-b border-slate-800/80 bg-slate-900/40 flex items-center justify-between">
+      <div className="p-3.5 border-b border-slate-800/80 bg-slate-900/40 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 flex items-center justify-center">
             <Sparkles className="w-3.5 h-3.5" />
@@ -70,6 +83,81 @@ export const LeftPane: React.FC<LeftPaneProps> = ({
         <span className="text-[10px] font-mono bg-slate-800/80 text-slate-300 px-2 py-0.5 rounded border border-slate-700/50">
           Strict Mode
         </span>
+      </div>
+
+      {/* Sticky Demo Scenario Bar at top of Left Chat Pane */}
+      <div className="sticky top-0 z-20 border-b border-slate-800/90 bg-slate-950/95 backdrop-blur-md p-2.5 space-y-1.5 shadow-md shrink-0">
+        <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-wider text-slate-400 px-0.5">
+          <span className="flex items-center gap-1.5 font-semibold text-slate-300">
+            <Sparkles className="w-3 h-3 text-amber-400" />
+            Executive Demo Scenarios
+          </span>
+          <span className="text-[9px] text-indigo-400 font-medium">1-Click Live Triggers</span>
+        </div>
+        <div className="grid grid-cols-1 gap-1.5">
+          {/* Button 1: Trace Payment Auth Drift */}
+          <button
+            type="button"
+            onClick={handleRunScenario1}
+            disabled={isLoading}
+            className="group flex items-center justify-between w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-900 hover:bg-slate-850 border border-slate-800 hover:border-amber-500/50 text-slate-200 hover:text-white transition-all shadow-sm active:scale-[0.99] disabled:opacity-50"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="w-5 h-5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center justify-center shrink-0 text-[10px] font-mono font-bold">
+                1
+              </span>
+              <div className="truncate">
+                <span className="text-slate-100 font-semibold group-hover:text-amber-300 transition-colors">Trace Payment Auth Drift</span>
+                <span className="text-[10px] text-slate-400 block -mt-0.5">Auth decisions & RFC drift proposal</span>
+              </div>
+            </div>
+            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0">
+              RFC Drift
+            </span>
+          </button>
+
+          {/* Button 2: Reassign Ownership */}
+          <button
+            type="button"
+            onClick={handleRunScenario2}
+            disabled={isLoading}
+            className="group flex items-center justify-between w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-900 hover:bg-slate-850 border border-slate-800 hover:border-blue-500/50 text-slate-200 hover:text-white transition-all shadow-sm active:scale-[0.99] disabled:opacity-50"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="w-5 h-5 rounded bg-blue-500/15 text-blue-400 border border-blue-500/30 flex items-center justify-center shrink-0 text-[10px] font-mono font-bold">
+                2
+              </span>
+              <div className="truncate">
+                <span className="text-slate-100 font-semibold group-hover:text-blue-300 transition-colors">Reassign Ownership</span>
+                <span className="text-[10px] text-slate-400 block -mt-0.5">Query owner & stage transfer proposal</span>
+              </div>
+            </div>
+            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-300 border border-blue-500/30 shrink-0">
+              2PC Proposal
+            </span>
+          </button>
+
+          {/* Button 3: Verify Tenant Isolation */}
+          <button
+            type="button"
+            onClick={handleRunScenario3}
+            disabled={isLoading}
+            className="group flex items-center justify-between w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-900 hover:bg-slate-850 border border-slate-800 hover:border-emerald-500/50 text-slate-200 hover:text-white transition-all shadow-sm active:scale-[0.99] disabled:opacity-50"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="w-5 h-5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0 text-[10px] font-mono font-bold">
+                3
+              </span>
+              <div className="truncate">
+                <span className="text-slate-100 font-semibold group-hover:text-emerald-300 transition-colors">Verify Tenant Isolation</span>
+                <span className="text-[10px] text-slate-400 block -mt-0.5">Query Kafka platform in Acme scope</span>
+              </div>
+            </div>
+            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shrink-0">
+              Zero Leakage
+            </span>
+          </button>
+        </div>
       </div>
 
       {/* Messages & Claim Bubbles */}
@@ -247,7 +335,7 @@ export const LeftPane: React.FC<LeftPaneProps> = ({
         <div className="grid grid-cols-1 gap-1.5">
           <button
             type="button"
-            onClick={onQuickDemo1}
+            onClick={handleRunScenario1}
             disabled={isLoading}
             className="flex items-center gap-2 w-full text-left px-2.5 py-1.5 rounded-md text-xs font-medium bg-slate-900 border border-slate-800 hover:border-slate-700 hover:bg-slate-850 text-slate-200 transition-colors shadow-sm disabled:opacity-50"
           >
@@ -260,7 +348,7 @@ export const LeftPane: React.FC<LeftPaneProps> = ({
 
           <button
             type="button"
-            onClick={onQuickDemo2}
+            onClick={handleRunScenario2}
             disabled={isLoading}
             className="flex items-center gap-2 w-full text-left px-2.5 py-1.5 rounded-md text-xs font-medium bg-slate-900 border border-slate-800 hover:border-slate-700 hover:bg-slate-850 text-slate-200 transition-colors shadow-sm disabled:opacity-50"
           >
@@ -273,7 +361,7 @@ export const LeftPane: React.FC<LeftPaneProps> = ({
 
           <button
             type="button"
-            onClick={onQuickDemo3}
+            onClick={handleSimulateStale}
             disabled={isLoading}
             className="flex items-center gap-2 w-full text-left px-2.5 py-1.5 rounded-md text-xs font-medium bg-rose-950/20 border border-rose-900/40 hover:border-rose-800 hover:bg-rose-950/30 text-rose-200 transition-colors shadow-sm disabled:opacity-50"
           >

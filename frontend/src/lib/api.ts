@@ -18,8 +18,10 @@ export interface ConfirmResponsePayload {
 
 export interface ErrorConflictPayload {
   error: string;
+  sent_hash?: string;
   current_snapshot_hash: string;
   epoch: number;
+  message?: string;
 }
 
 export async function executeTurn(

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { TimelineItem, PendingProposal, TurnState } from '@/types';
+import { TimelineItem, PendingProposal, TurnState, GraphNode, EvidenceItem } from '@/types';
 import { ErrorConflictPayload } from '@/lib/api';
 import { 
   GitCommit, 
@@ -20,9 +20,12 @@ import {
   Copy,
   Layers,
   FileCode,
+  FileText,
   ShieldCheck,
   AlertOctagon,
-  Loader2
+  Loader2,
+  Sparkles,
+  Info
 } from 'lucide-react';
 
 interface RightPaneProps {
@@ -35,6 +38,9 @@ interface RightPaneProps {
   conflictError: ErrorConflictPayload | null;
   onDismissConflict: () => void;
   onRefreshProposal?: () => void;
+  selectedNode?: GraphNode | null;
+  onClearSelectedNode?: () => void;
+  onSelectEvidence?: (evidence: EvidenceItem) => void;
 }
 
 export const RightPane: React.FC<RightPaneProps> = ({
@@ -47,9 +53,13 @@ export const RightPane: React.FC<RightPaneProps> = ({
   conflictError,
   onDismissConflict,
   onRefreshProposal,
+  selectedNode,
+  onClearSelectedNode,
+  onSelectEvidence,
 }) => {
   const [copiedHash, setCopiedHash] = useState(false);
   const [copiedConflictHash, setCopiedConflictHash] = useState(false);
+  const [copiedNodeId, setCopiedNodeId] = useState(false);
 
   const isAwaitingConfirmation = turnStatus === 'AWAITING_CONFIRMATION' && !!pendingProposal;
 
@@ -62,7 +72,7 @@ export const RightPane: React.FC<RightPaneProps> = ({
   return (
     <aside className="w-[360px] min-w-[360px] max-w-[360px] border-l border-slate-800 bg-slate-950 flex flex-col h-[calc(100vh-3.5rem)] select-text relative">
       {/* Pane Header */}
-      <div className="p-3.5 border-b border-slate-800/80 bg-slate-900/40 flex items-center justify-between">
+      <div className="p-3.5 border-b border-slate-800/80 bg-slate-900/40 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded bg-violet-500/10 text-violet-400 border border-violet-500/20 flex items-center justify-center">
             <GitPullRequest className="w-3.5 h-3.5" />
@@ -80,7 +90,176 @@ export const RightPane: React.FC<RightPaneProps> = ({
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-5">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {/* Animated HTTP 409 Snapshot Drift Alert Banner */}
+        {conflictError && (
+          <div className="rounded-xl border border-rose-500/60 bg-gradient-to-b from-rose-950/60 via-slate-900 to-slate-900 p-3.5 shadow-2xl shadow-rose-950/40 space-y-3 animate-in slide-in-from-top-2 duration-300">
+            <div className="flex items-start justify-between pb-2 border-b border-rose-900/40">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center justify-center animate-pulse shrink-0">
+                  <AlertOctagon className="w-4 h-4 text-rose-400" />
+                </div>
+                <div>
+                  <h3 className="text-xs font-semibold text-rose-200 flex items-center gap-1.5">
+                    Snapshot Drift Detected
+                    <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                      HTTP 409
+                    </span>
+                  </h3>
+                  <p className="text-[10px] text-slate-400">Target entity state modified concurrently</p>
+                </div>
+              </div>
+              <button
+                onClick={onDismissConflict}
+                className="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-800 transition-colors"
+                title="Dismiss"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <p className="text-[11px] text-rose-300/90 leading-relaxed">
+              {conflictError.message || 'Target entity updated timestamp shifted in FalkorDB while proposal was staged. Mutation aborted by Redis CAS state machine to preserve graph integrity.'}
+            </p>
+
+            {/* Hash Mismatch Diff Comparison */}
+            <div className="space-y-1.5 text-xs font-mono">
+              <div className="bg-slate-950 p-2 rounded-lg border border-rose-900/40 space-y-0.5">
+                <div className="flex items-center justify-between text-[10px] text-slate-400">
+                  <span className="font-sans uppercase text-[9px] text-rose-400 font-medium">Staged Hash (Sent):</span>
+                  <span className="text-[9px] text-rose-400/80">Stale</span>
+                </div>
+                <p className="text-[10px] text-rose-300 truncate select-all">
+                  {conflictError.sent_hash || pendingProposal?.snapshot_hash || 'sha256:4a8c9e1f2b3d4e5a6c7b8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a'}
+                </p>
+              </div>
+
+              <div className="bg-slate-950 p-2 rounded-lg border border-emerald-900/40 space-y-0.5">
+                <div className="flex items-center justify-between text-[10px]">
+                  <span className="font-sans uppercase text-[9px] text-emerald-400 font-medium">Live FalkorDB Hash (Current):</span>
+                  <button
+                    onClick={() => handleCopy(conflictError.current_snapshot_hash, setCopiedConflictHash)}
+                    className="text-emerald-400 hover:text-emerald-300 flex items-center gap-1 text-[9px]"
+                  >
+                    {copiedConflictHash ? (
+                      <>
+                        <Check className="w-2.5 h-2.5 text-emerald-400" />
+                        <span>Copied</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-2.5 h-2.5" />
+                        <span>Copy</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+                <p className="text-[10px] text-emerald-300 truncate select-all">
+                  {conflictError.current_snapshot_hash}
+                </p>
+              </div>
+            </div>
+
+            {/* Re-sync & Update Action Button */}
+            <div className="pt-1 flex items-center gap-2">
+              {onRefreshProposal && (
+                <button
+                  type="button"
+                  onClick={onRefreshProposal}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-950/40 transition-all cursor-pointer active:scale-98"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Re-sync & Update</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={onDismissConflict}
+                className="px-3 py-1.5 text-xs text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Inspected Node Details Drawer / Card (from Center Graph Canvas click) */}
+        {selectedNode && (
+          <div className="rounded-xl border border-indigo-500/40 bg-gradient-to-b from-indigo-950/30 via-slate-900 to-slate-900/95 p-3.5 shadow-xl shadow-indigo-950/20 space-y-3 animate-in slide-in-from-top-2 duration-200">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <span
+                  className="w-2.5 h-2.5 rounded-full ring-2 ring-slate-800 shrink-0"
+                  style={{ backgroundColor: selectedNode.color }}
+                />
+                <span className="text-[10px] font-mono uppercase tracking-wider font-semibold text-slate-300">
+                  {selectedNode.label} Entity Details
+                </span>
+              </div>
+              {onClearSelectedNode && (
+                <button
+                  onClick={onClearSelectedNode}
+                  className="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-800 transition-colors"
+                  title="Close inspector"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            <div>
+              <h3 className="text-xs font-semibold text-white tracking-tight">{selectedNode.name}</h3>
+              <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 mt-0.5">
+                <span className="truncate max-w-[220px] select-all">{selectedNode.id}</span>
+                <button
+                  onClick={() => handleCopy(selectedNode.id, setCopiedNodeId)}
+                  className="text-indigo-400 hover:text-indigo-300 inline-flex items-center gap-0.5 ml-1 shrink-0"
+                >
+                  {copiedNodeId ? (
+                    <Check className="w-2.5 h-2.5 text-emerald-400" />
+                  ) : (
+                    <Copy className="w-2.5 h-2.5" />
+                  )}
+                  <span>{copiedNodeId ? 'Copied' : 'Copy'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Attribute Key-Values */}
+            {selectedNode.properties && (
+              <div className="bg-slate-950/80 border border-slate-800/80 rounded-lg p-2.5 space-y-1.5 text-xs font-mono">
+                {Object.entries(selectedNode.properties).map(([key, val]) => (
+                  <div key={key} className="flex flex-col text-[11px] pb-1.5 border-b border-slate-800/60 last:border-none last:pb-0">
+                    <span className="text-slate-400 text-[10px] uppercase font-sans font-medium">{key.replace(/_/g, ' ')}:</span>
+                    <span className="text-slate-200 break-words leading-relaxed select-text mt-0.5">
+                      {String(val)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Special Action for Evidence node */}
+            {selectedNode.label === 'Evidence' && onSelectEvidence && selectedNode.properties && (
+              <button
+                type="button"
+                onClick={() => onSelectEvidence({
+                  id: selectedNode.id,
+                  record_id: selectedNode.properties?.record_id || selectedNode.id,
+                  excerpt: selectedNode.properties?.excerpt || selectedNode.name,
+                  source_uri: selectedNode.properties?.source_uri || 'falkordb://evidence/' + selectedNode.id,
+                  source_timestamp: selectedNode.properties?.source_timestamp || '2026-09-22T14:30:00Z',
+                  content_hash: selectedNode.properties?.content_hash || 'sha256:7f9b8c...',
+                })}
+                className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 transition-all shadow-sm cursor-pointer"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>Open Grounded Evidence Drawer</span>
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Proposal Confirmation Card (visible when status is AWAITING_CONFIRMATION) */}
         {isAwaitingConfirmation && pendingProposal && (
           <div className="rounded-xl border border-amber-500/40 bg-gradient-to-b from-amber-950/30 via-slate-900 to-slate-900/90 p-4 shadow-xl shadow-amber-950/20 space-y-3.5 animate-in slide-in-from-top-2 duration-300">
@@ -94,24 +273,101 @@ export const RightPane: React.FC<RightPaneProps> = ({
               </span>
             </div>
 
-            {/* Target & Action Diff */}
+            {/* Target & Live Mutation Preview Diff */}
             <div className="bg-slate-950/80 border border-slate-800 rounded-lg p-3 space-y-2 text-xs">
               <div className="flex items-center justify-between text-[11px] pb-1.5 border-b border-slate-800">
                 <span className="text-slate-400">Target System:</span>
-                <span className="font-mono text-emerald-400 font-medium">
+                <span className="font-mono text-emerald-400 font-semibold">
                   {pendingProposal.action.system_name || 'payment-gateway'}
                 </span>
               </div>
               <div className="flex items-center justify-between text-[11px] pb-1.5 border-b border-slate-800">
-                <span className="text-slate-400">Action Type:</span>
-                <span className="font-mono text-indigo-300">
+                <span className="text-slate-400">Action:</span>
+                <span className="font-mono text-indigo-300 font-medium">
                   {pendingProposal.action.type}
                 </span>
               </div>
 
-              {/* Specific Action Diff Details */}
-              <div className="space-y-1.5 pt-1">
-                <span className="text-[10px] font-mono uppercase text-slate-400 block">Proposed Diff:</span>
+              {/* Specific Action Live Diff Details */}
+              {pendingProposal.action.type === 'documentation_drift_fix' ? (
+                <div className="space-y-2 pt-1 font-mono text-[11px]">
+                  <div className="text-[10px] font-mono uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                    <span>Live Mutation Diff</span>
+                    <span className="text-emerald-400">Graph Alignment</span>
+                  </div>
+
+                  {/* Document status: stale -> updated */}
+                  <div className="bg-slate-900/90 p-2.5 rounded border border-slate-800 space-y-1.5">
+                    <div className="flex items-center justify-between text-[10px] text-slate-400 font-sans">
+                      <span>Document: Payments Auth RFC v1</span>
+                      <span className="text-slate-500 font-mono text-[9px]">{pendingProposal.action.document_id}</span>
+                    </div>
+                    <div className="flex items-center gap-2 pt-0.5">
+                      <span className="line-through bg-rose-950/60 text-rose-400 border border-rose-900/60 px-2 py-0.5 rounded text-[10px]">
+                        status: stale
+                      </span>
+                      <ArrowRight className="w-3 h-3 text-slate-500 shrink-0" />
+                      <span className="bg-emerald-950/60 text-emerald-300 border border-emerald-800/60 px-2 py-0.5 rounded text-[10px] font-bold">
+                        status: updated
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* New edge: [:ALIGNED_WITH] */}
+                  <div className="bg-emerald-950/20 p-2.5 rounded border border-emerald-900/40 text-[10px] space-y-1">
+                    <span className="text-emerald-400 font-sans font-medium uppercase text-[9px] block">
+                      New Relationship Edge:
+                    </span>
+                    <div className="text-emerald-300 flex items-center gap-1 font-mono">
+                      <span className="font-bold text-emerald-400">+</span>
+                      <span>[:ALIGNED_WITH]</span>
+                      <ArrowRight className="w-2.5 h-2.5 text-emerald-500" />
+                      <span className="text-violet-300">
+                        {pendingProposal.action.superseding_decision_id || 'dec_ed25519_local'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ) : pendingProposal.action.type === 'reassign_owner' ? (
+                <div className="space-y-2 pt-1 font-mono text-[11px]">
+                  <div className="text-[10px] font-mono uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                    <span>Live Mutation Diff</span>
+                    <span className="text-blue-400">Ownership Transfer</span>
+                  </div>
+
+                  {/* Owner: current -> new */}
+                  <div className="bg-slate-900/90 p-2.5 rounded border border-slate-800 space-y-1.5">
+                    <div className="flex items-center justify-between text-[10px] text-slate-400 font-sans">
+                      <span>System Owner Assignment</span>
+                      <span className="text-slate-500 font-mono text-[9px]">{pendingProposal.action.system_name}</span>
+                    </div>
+                    <div className="flex items-center gap-2 pt-0.5">
+                      <span className="line-through bg-rose-950/60 text-rose-400 border border-rose-900/60 px-2 py-0.5 rounded text-[10px]">
+                        {pendingProposal.action.current_owner_email || 'priya@acme.com'}
+                      </span>
+                      <ArrowRight className="w-3 h-3 text-slate-500 shrink-0" />
+                      <span className="bg-emerald-950/60 text-emerald-300 border border-emerald-800/60 px-2 py-0.5 rounded text-[10px] font-bold">
+                        {pendingProposal.action.new_owner_email}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Edge mutations */}
+                  <div className="bg-blue-950/20 p-2.5 rounded border border-blue-900/40 text-[10px] space-y-1">
+                    <span className="text-blue-400 font-sans font-medium uppercase text-[9px] block">
+                      Edge Mutations:
+                    </span>
+                    <div className="text-rose-400 flex items-center gap-1 font-mono">
+                      <span className="font-bold">-</span>
+                      <span>Close [:OWNS] from {pendingProposal.action.current_owner_email || 'priya@acme.com'}</span>
+                    </div>
+                    <div className="text-emerald-300 flex items-center gap-1 font-mono">
+                      <span className="font-bold">+</span>
+                      <span>Create active [:OWNS] to {pendingProposal.action.new_owner_email}</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
                 <div className="font-mono text-[11px] bg-slate-900 p-2.5 rounded border border-slate-800 text-slate-300 space-y-1 leading-relaxed">
                   {pendingProposal.action.document_id && (
                     <div className="flex items-center gap-1.5 text-amber-300">
@@ -140,13 +396,14 @@ export const RightPane: React.FC<RightPaneProps> = ({
                       </span>
                     </div>
                   )}
-                  {pendingProposal.action.description && (
-                    <p className="text-[10px] text-slate-400 italic pt-1 border-t border-slate-800/60">
-                      {pendingProposal.action.description}
-                    </p>
-                  )}
                 </div>
-              </div>
+              )}
+
+              {pendingProposal.action.description && (
+                <p className="text-[10px] text-slate-400 italic pt-1 border-t border-slate-800/60">
+                  {pendingProposal.action.description}
+                </p>
+              )}
 
               {/* Fencing Snapshot Hash */}
               <div className="pt-2 border-t border-slate-800">
@@ -200,7 +457,7 @@ export const RightPane: React.FC<RightPaneProps> = ({
         )}
 
         {/* When no proposal is pending */}
-        {!isAwaitingConfirmation && (
+        {!isAwaitingConfirmation && !selectedNode && (
           <div className="rounded-lg border border-slate-800/80 bg-slate-900/30 p-3 text-xs text-slate-400 flex items-center gap-2.5">
             <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
             <div className="text-[11px] leading-tight">
