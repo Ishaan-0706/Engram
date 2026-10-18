@@ -26,6 +26,7 @@ from falkordb import FalkorDB
 import redis as redis_lib
 
 from engram_graph_core.bootstrap import INDEXES, UNIQUE_NODE_CONSTRAINTS
+from scripts.seed_acme_payments import seed_acme_payments
 from scripts.seed_nexus_infra import seed_nexus_infra
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -78,95 +79,7 @@ def bootstrap_indexes(graph: Any, name: str) -> None:
                     continue
 
 
-def seed_acme_payments(db: FalkorDB) -> tuple[int, int]:
-    """Re-seed tenant_acme_payments to pristine state."""
-    if ACME_TENANT in db.list_graphs():
-        db.select_graph(ACME_TENANT).delete()
 
-    graph = db.select_graph(ACME_TENANT)
-    bootstrap_indexes(graph, ACME_TENANT)
-
-    # People
-    graph.query(
-        """
-        CREATE (:Person {id: 'usr_018f_aarav', display_name: 'Aarav Sharma', canonical_email: 'aarav@acme.com', role: 'Staff Engineer'}),
-               (:Person {id: 'usr_018f_priya', display_name: 'Priya Nair', canonical_email: 'priya@acme.com', role: 'Payments Lead'})
-        """
-    )
-
-    # Team & System
-    graph.query(
-        """
-        CREATE (:Team {id: 'team_core_pay', name: 'Core Payments'}),
-               (:System {id: 'sys_payment_gw', name: 'payment-gateway', status: 'active'})
-        """
-    )
-
-    # Document & Decisions
-    now_ms = int(time.time() * 1000)
-    anchor_ts = now_ms - (62 * 86400 * 1000)
-    graph.query(
-        """
-        CREATE (:Document {id: 'doc_auth_rfc', title: 'Payments Auth RFC v1', status: 'stale', uri: 'confluence://acme/docs/auth-rfc-v1', created_at: $anchor_ts}),
-               (:Decision {id: 'dec_oauth_introspection', summary: 'Use centralized OAuth introspection endpoint for payment auth', status: 'superseded', timestamp: $anchor_ts}),
-               (:Decision {id: 'dec_ed25519_local', summary: 'Verify tokens locally via Ed25519 public keys to protect p99 latency', status: 'active', timestamp: $now_ms})
-        """,
-        {"anchor_ts": anchor_ts, "now_ms": now_ms},
-    )
-
-    # Source & Evidence
-    excerpt = (
-        "INC-PAYMENTS Incident Retrospective: Due to 250ms p99 latency spikes on OAuth "
-        "introspection during flash sales, we are switching payment-gateway token validation "
-        "to local Ed25519 public keys."
-    )
-    source_uri = "slack://channels/inc-payments/p1726000000"
-    content_hash = hashlib.sha256(f"{excerpt}\n{source_uri}".encode("utf-8")).hexdigest()
-
-    graph.query(
-        """
-        CREATE (:Source {id: 'src_slack_inc', uri: $uri, source_type: 'slack', content_hash: $content_hash}),
-               (:Evidence {
-                   id: 'evi_018f_latency_auth',
-                   record_id: 'dec_ed25519_local',
-                   excerpt: $excerpt,
-                   source_uri: $uri,
-                   source_timestamp: '2026-09-22T14:30:00Z',
-                   valid_from: 1726900000000,
-                   content_hash: $content_hash
-               })
-        """,
-        {"uri": source_uri, "content_hash": content_hash, "excerpt": excerpt},
-    )
-
-    # Edges
-    graph.query(
-        """
-        MATCH (aarav:Person {id: 'usr_018f_aarav'}),
-              (priya:Person {id: 'usr_018f_priya'}),
-              (team:Team {id: 'team_core_pay'}),
-              (sys:System {id: 'sys_payment_gw'}),
-              (doc:Document {id: 'doc_auth_rfc'}),
-              (old_dec:Decision {id: 'dec_oauth_introspection'}),
-              (new_dec:Decision {id: 'dec_ed25519_local'}),
-              (evi:Evidence {id: 'evi_018f_latency_auth'}),
-              (src:Source {id: 'src_slack_inc'})
-        CREATE (aarav)-[:MEMBER_OF]->(team),
-               (aarav)-[:ESTABLISHED]->(new_dec),
-               (priya)-[:MEMBER_OF]->(team),
-               (priya)-[:OWNS {valid_from: 1700000000000, ingested_at: 1726900000000, valid_to: null}]->(sys),
-               (doc)-[:DOCUMENTS]->(sys),
-               (doc)-[:PROPOSED]->(old_dec),
-               (new_dec)-[:AFFECTS]->(sys),
-               (new_dec)-[:SUPERSEDES {reason: 'OAuth introspection latency violated 250ms p99 SLA'}]->(old_dec),
-               (new_dec)-[:SUPPORTED_BY]->(evi),
-               (evi)-[:PART_OF]->(src)
-        """
-    )
-
-    nodes = graph.query("MATCH (n) RETURN count(n)").result_set[0][0]
-    edges = graph.query("MATCH ()-[r]->() RETURN count(r)").result_set[0][0]
-    return nodes, edges
 
 
 def flush_redis_state(host: str, port: int) -> int:

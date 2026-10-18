@@ -61,19 +61,17 @@ export async function confirmProposal(
 }
 
 /**
- * Resume or refresh turn state for the given dynamic tenant.
+ * Fetch live graph topology (nodes, links, timeline) for tenant from FalkorDB.
  */
-export async function resumeTurn(
-  request: ResumeRequest
-): Promise<Record<string, unknown>> {
-  const resp = await fetch(`${API_BASE_URL}/api/resume`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(request),
-  });
+export async function fetchGraphTopology(
+  tenantId: string
+): Promise<{ tenant_id: string; nodes: any[]; links: any[]; timeline: any[] }> {
+  const normalized = tenantId.toLowerCase().replace(/\s+/g, "_");
+  const resp = await fetch(`${API_BASE_URL}/api/graph/${normalized}`);
   if (!resp.ok) {
     const errorBody = await resp.json().catch(() => ({}));
-    throw new Error(`Resume failed (${resp.status}): ${JSON.stringify(errorBody)}`);
+    throw new Error(`Graph fetch failed (${resp.status}): ${JSON.stringify(errorBody)}`);
   }
   return resp.json();
 }
+

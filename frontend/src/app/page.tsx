@@ -15,25 +15,16 @@ import { LeftPane } from '@/components/LeftPane';
 import { CenterPane } from '@/components/CenterPane';
 import { RightPane } from '@/components/RightPane';
 import { EvidenceDrawer } from '@/components/EvidenceDrawer';
-import { 
-  ACME_GRAPH_NODES, 
-  ACME_GRAPH_LINKS, 
-  ACME_TIMELINE, 
-  NEXUS_GRAPH_NODES, 
-  NEXUS_GRAPH_LINKS, 
-  NEXUS_TIMELINE, 
-  INITIAL_GRAPH_NODES, 
-  INITIAL_GRAPH_LINKS, 
-  TIMELINE_DATA, 
-  DEMO_PRESETS 
-} from '@/lib/mockData';
+import { DEMO_PRESETS } from '@/lib/mockData';
 import { 
   executeTurn, 
   confirmProposal, 
   checkConnection, 
+  fetchGraphTopology,
   ErrorConflictPayload 
 } from '@/lib/api';
 import { generateUUIDv7 } from '@/lib/uuid';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
 
 export default function DashboardPage() {
   // Session & Tenant state
@@ -41,6 +32,7 @@ export default function DashboardPage() {
   const [sessionId, setSessionId] = useState<string>(() => 'sess_exec_' + Math.random().toString(36).substring(2, 9));
   const [epoch, setEpoch] = useState<number>(1);
   const [isConnected, setIsConnected] = useState<boolean>(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
 
   // Turn state & Chat
   const [turnState, setTurnState] = useState<TurnState | null>({
@@ -51,24 +43,7 @@ export default function DashboardPage() {
     epoch: 1,
     working_set: {},
     tool_trace: [],
-    evidence_bag: {
-      'evi_018f_latency_auth': {
-        id: 'evi_018f_latency_auth',
-        record_id: 'sys_payment_gw',
-        excerpt: 'switching payment-gateway token validation to local Ed25519 public key verification to eliminate auth latency bottleneck.',
-        source_uri: 'slack://channels/inc-payments/p1726000000',
-        source_timestamp: '2026-09-22T14:30:00Z',
-        content_hash: 'sha256:7f9b8c6a5d4e3f2b1a0c9d8e7f6a5b4c3d2e1f0a9b8c7d6e5f4a3b2c1d0e9f8a',
-      },
-      'evi_018f_rfc_proposal': {
-        id: 'evi_018f_rfc_proposal',
-        record_id: 'doc_auth_rfc',
-        excerpt: 'RFC originally mandated network introspection per incoming HTTP request; later invalidated by benchmark incident #842.',
-        source_uri: 'confluence://wiki.acme.dev/pages/payments-auth-v1#section-3',
-        source_timestamp: '2026-08-10T11:00:00Z',
-        content_hash: 'sha256:1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b',
-      },
-    },
+    evidence_bag: {},
     pending_proposal: null,
     synthesis_traces: [],
     fail_reason: null,
@@ -78,10 +53,10 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isConfirming, setIsConfirming] = useState<boolean>(false);
 
-  // Graph & Timeline state
-  const [nodes, setNodes] = useState<GraphNode[]>(INITIAL_GRAPH_NODES);
-  const [links, setLinks] = useState<GraphLink[]>(INITIAL_GRAPH_LINKS);
-  const [timeline, setTimeline] = useState<TimelineItem[]>(TIMELINE_DATA);
+  // Graph & Timeline state (Pure live graph from FalkorDB)
+  const [nodes, setNodes] = useState<GraphNode[]>([]);
+  const [links, setLinks] = useState<GraphLink[]>([]);
+  const [timeline, setTimeline] = useState<TimelineItem[]>([]);
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
 
   // Evidence Drawer & Hover Synchronization
@@ -92,12 +67,76 @@ export default function DashboardPage() {
   // 409 Conflict Modal & Banner
   const [conflictError, setConflictError] = useState<ErrorConflictPayload | null>(null);
 
-  // Check backend connectivity on mount and periodically
+  // Load live topology directly from FalkorDB via FastAPI endpoint
+  const loadLiveTopology = useCallback(async (tenant: Tenant) => {
+    try {
+      const data = await fetchGraphTopology(tenant);
+      setNodes(data.nodes);
+      setLinks(data.links);
+      setTimeline(data.timeline);
+      setIsConnected(true);
+      setConnectionError(null);
+
+      // Hydrate evidence_bag with verified live Evidence nodes
+      const liveEvBag: Record<string, EvidenceItem> = {};
+      data.nodes.forEach((n) => {
+        if (n.label === 'Evidence' && n.properties) {
+          liveEvBag[n.id] = {
+            id: n.id,
+            record_id: n.properties.record_id || n.id,
+            excerpt: n.properties.excerpt || n.name,
+            source_uri: n.properties.source_uri || 'falkordb://evidence/' + n.id,
+            source_timestamp: n.properties.source_timestamp || '2026-09-22T14:30:00Z',
+            content_hash: n.properties.content_hash || 'sha256:0000000000000000000000000000000000000000000000000000000000000000',
+          };
+        }
+      });
+
+      setTurnState((prev) => prev ? {
+        ...prev,
+        tenant_id: tenant,
+        evidence_bag: { ...prev.evidence_bag, ...liveEvBag },
+      } : {
+        turn_id: 'turn_init',
+        tenant_id: tenant,
+        user_id: 'usr_staff_engineer',
+        status: 'COMPLETED',
+        epoch: 1,
+        working_set: {},
+        tool_trace: [],
+        evidence_bag: liveEvBag,
+        pending_proposal: null,
+        synthesis_traces: [],
+        fail_reason: null,
+      });
+    } catch (err: any) {
+      console.error('Failed to load live graph topology from FalkorDB:', err);
+      setIsConnected(false);
+      setNodes([]);
+      setLinks([]);
+      setTimeline([]);
+      setConnectionError('FalkorDB Connection Required: Start FalkorDB on port 6379 to load live graph topology.');
+    }
+  }, []);
+
+  // Fetch initial topology on mount and when tenant changes
+  useEffect(() => {
+    loadLiveTopology(currentTenant);
+  }, [currentTenant, loadLiveTopology]);
+
+  // Periodic health check
   useEffect(() => {
     let mounted = true;
     const probe = async () => {
       const live = await checkConnection();
-      if (mounted) setIsConnected(live);
+      if (mounted) {
+        setIsConnected(live);
+        if (!live) {
+          setConnectionError('FalkorDB Connection Required: Start FalkorDB on port 6379 to load live graph topology.');
+        } else if (connectionError) {
+          loadLiveTopology(currentTenant);
+        }
+      }
     };
     probe();
     const interval = setInterval(probe, 10000);
@@ -105,9 +144,9 @@ export default function DashboardPage() {
       mounted = false;
       clearInterval(interval);
     };
-  }, []);
+  }, [connectionError, currentTenant, loadLiveTopology]);
 
-  // Update tenant scope: reset session state, epoch, and dynamically reload topology
+  // Update tenant scope: reset session state, epoch, and dynamically reload live FalkorDB topology
   const handleTenantChange = (newTenant: Tenant) => {
     setCurrentTenant(newTenant);
     const newSessionId = 'sess_exec_' + Math.random().toString(36).substring(2, 9);
@@ -118,87 +157,16 @@ export default function DashboardPage() {
     setConflictError(null);
     setIsDrawerOpen(false);
 
-    if (newTenant === 'Nexus Infra') {
-      setNodes(NEXUS_GRAPH_NODES);
-      setLinks(NEXUS_GRAPH_LINKS);
-      setTimeline(NEXUS_TIMELINE);
-      setTurnState({
-        turn_id: 'turn_nexus_init',
-        tenant_id: 'Nexus Infra',
-        user_id: 'usr_staff_engineer',
+    setMessages([
+      {
+        id: 'tenant_switch_' + Date.now(),
+        role: 'assistant',
+        content: `Switched tenant context to ${newTenant}. Reset session to Epoch #1. Fetching live graph topology for tenant_${newTenant.toLowerCase().replace(/\\s+/g, '_')}...`,
+        timestamp: new Date().toLocaleTimeString(),
         status: 'COMPLETED',
         epoch: 1,
-        working_set: {},
-        tool_trace: [],
-        evidence_bag: {
-          'evi_018f_kraft_consensus': {
-            id: 'evi_018f_kraft_consensus',
-            record_id: 'sys_018f_kafka',
-            excerpt: 'Migrated event-stream-cluster to KRaft mode on 2026-08-14 after ZooKeeper consensus timeouts triggered cross-AZ partition deadlocks.',
-            source_uri: 'linear://nexus-infra/issue/ENG-4091',
-            source_timestamp: '2026-08-14T15:30:00Z',
-            content_hash: 'sha256:5d4a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a',
-          },
-        },
-        pending_proposal: null,
-        synthesis_traces: [],
-        fail_reason: null,
-      });
-      setMessages([
-        {
-          id: 'tenant_switch_' + Date.now(),
-          role: 'assistant',
-          content: 'Switched tenant context to Nexus Infra. Session reset (Epoch #1). Topology reloaded with event-stream-cluster, KRaft decisions, and platform engineers.',
-          timestamp: new Date().toLocaleTimeString(),
-          status: 'COMPLETED',
-          epoch: 1,
-        },
-      ]);
-    } else {
-      setNodes(ACME_GRAPH_NODES);
-      setLinks(ACME_GRAPH_LINKS);
-      setTimeline(ACME_TIMELINE);
-      setTurnState({
-        turn_id: 'turn_acme_init',
-        tenant_id: 'Acme Payments',
-        user_id: 'usr_staff_engineer',
-        status: 'COMPLETED',
-        epoch: 1,
-        working_set: {},
-        tool_trace: [],
-        evidence_bag: {
-          'evi_018f_latency_auth': {
-            id: 'evi_018f_latency_auth',
-            record_id: 'sys_payment_gw',
-            excerpt: 'switching payment-gateway token validation to local Ed25519 public key verification to eliminate auth latency bottleneck.',
-            source_uri: 'slack://channels/inc-payments/p1726000000',
-            source_timestamp: '2026-09-22T14:30:00Z',
-            content_hash: 'sha256:7f9b8c6a5d4e3f2b1a0c9d8e7f6a5b4c3d2e1f0a9b8c7d6e5f4a3b2c1d0e9f8a',
-          },
-          'evi_018f_rfc_proposal': {
-            id: 'evi_018f_rfc_proposal',
-            record_id: 'doc_auth_rfc',
-            excerpt: 'RFC originally mandated network introspection per incoming HTTP request; later invalidated by benchmark incident #842.',
-            source_uri: 'confluence://wiki.acme.dev/pages/payments-auth-v1#section-3',
-            source_timestamp: '2026-08-10T11:00:00Z',
-            content_hash: 'sha256:1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b',
-          },
-        },
-        pending_proposal: null,
-        synthesis_traces: [],
-        fail_reason: null,
-      });
-      setMessages([
-        {
-          id: 'tenant_switch_' + Date.now(),
-          role: 'assistant',
-          content: 'Switched tenant context to Acme Payments. Session reset (Epoch #1). Topology reloaded with payment-gateway, Ed25519 decisions, and payments team.',
-          timestamp: new Date().toLocaleTimeString(),
-          status: 'COMPLETED',
-          epoch: 1,
-        },
-      ]);
-    }
+      },
+    ]);
   };
 
   // Open evidence drawer for a given item or id
@@ -220,7 +188,7 @@ export default function DashboardPage() {
     setIsDrawerOpen(true);
   };
 
-  // Execute conversational turn
+  // Execute conversational turn against live FastAPI + FalkorDB backend
   const handleSendQuery = async (query: string) => {
     const userMsg: ChatMessage = {
       id: 'usr_' + Date.now(),
@@ -233,7 +201,6 @@ export default function DashboardPage() {
     setIsLoading(true);
 
     try {
-      // Attempt live backend call
       const res = await executeTurn(currentTenant, sessionId, query, epoch);
       setEpoch(res.epoch);
       setTurnState(res.turn);
@@ -252,255 +219,68 @@ export default function DashboardPage() {
       };
 
       setMessages((prev) => [...prev, assistantMsg]);
+      // Synchronize graph state from FalkorDB
+      loadLiveTopology(currentTenant);
     } catch (err: any) {
-      console.warn('Backend call fallback to smart deterministic response:', err);
-
-      // Check if this query matches known demo flows
-      if (query.toLowerCase().includes('auth') || query.toLowerCase().includes('decision')) {
-        handleDemoScenario1(query);
-      } else if (query.toLowerCase().includes('drift') || query.toLowerCase().includes('rfc')) {
-        handleDemoScenario1(query);
-      } else if (query.toLowerCase().includes('owner') || query.toLowerCase().includes('reassign')) {
-        handleDemoScenario2(query);
-      } else {
-        // Fallback grounded answer
-        const newEpoch = epoch + 1;
-        setEpoch(newEpoch);
-        const fallbackAnswer = {
-          summary: `Company Brain analyzed "${query}" across FalkorDB entities for tenant ${currentTenant}.`,
-          statements: [
-            {
-              claim: `System payment-gateway is running v2 architecture with Ed25519 authentication verified.`,
-              cited_evidence_ids: ['evi_018f_latency_auth'],
-            },
-          ],
-        };
-
-        const assistantMsg: ChatMessage = {
-          id: 'asst_' + Date.now(),
-          role: 'assistant',
-          content: fallbackAnswer.summary,
-          timestamp: new Date().toLocaleTimeString(),
-          answer: fallbackAnswer,
-          status: 'COMPLETED',
-          epoch: newEpoch,
-        };
-
-        setTurnState((prev) => prev ? { ...prev, epoch: newEpoch, status: 'COMPLETED' } : null);
-        setMessages((prev) => [...prev, assistantMsg]);
+      console.error('Turn execution error:', err);
+      const isConnectionIssue = !isConnected || err.message?.includes('fetch') || err.message?.includes('Network') || err.message?.includes('503');
+      if (isConnectionIssue) {
+        setConnectionError('FalkorDB Connection Required: Start FalkorDB on port 6379 to load live graph topology.');
       }
+      const assistantMsg: ChatMessage = {
+        id: 'asst_err_' + Date.now(),
+        role: 'assistant',
+        content: `Error executing query: ${err.message || 'FalkorDB Service Unavailable'}. Please ensure FalkorDB is running on port 6379 and FastAPI backend on port 8000.`,
+        timestamp: new Date().toLocaleTimeString(),
+        status: 'FAILED',
+        epoch,
+      };
+      setMessages((prev) => [...prev, assistantMsg]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Demo Scenario 1: "Trace Payment Auth Drift"
-  const handleDemoScenario1 = async (customQuery?: string) => {
-    const query = customQuery || DEMO_PRESETS.tracePaymentAuthDrift.query;
-    setIsLoading(true);
-
-    const userMsg: ChatMessage = {
-      id: 'usr_' + Date.now(),
-      role: 'user',
-      content: query,
-      timestamp: new Date().toLocaleTimeString(),
-    };
-    setMessages((prev) => [...prev, userMsg]);
-
-    try {
-      if (isConnected) {
-        const res = await executeTurn(currentTenant, sessionId, query, epoch);
-        setEpoch(res.epoch);
-        setTurnState(res.turn);
-
-        const synth = res.turn.synthesis_traces[res.turn.synthesis_traces.length - 1]?.payload;
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: 'asst_' + Date.now(),
-            role: 'assistant',
-            content: synth?.summary || DEMO_PRESETS.tracePaymentAuthDrift.answer.summary,
-            timestamp: new Date().toLocaleTimeString(),
-            answer: synth || DEMO_PRESETS.tracePaymentAuthDrift.answer,
-            status: res.turn.status,
-            fail_reason: res.turn.fail_reason,
-            epoch: res.epoch,
-          },
-        ]);
-        return;
-      }
-    } catch {
-      // fallback to deterministic preset
-    }
-
-    // Deterministic simulation
-    setTimeout(() => {
-      const nextEpoch = epoch + 1;
-      setEpoch(nextEpoch);
-
-      setTurnState((prev) => ({
-        ...(prev || ({} as any)),
-        turn_id: 'turn_demo_drift',
-        status: 'AWAITING_CONFIRMATION',
-        epoch: nextEpoch,
-        pending_proposal: DEMO_PRESETS.tracePaymentAuthDrift.pending_proposal,
-      }));
-
-      const assistantMsg: ChatMessage = {
-        id: 'asst_' + Date.now(),
-        role: 'assistant',
-        content: DEMO_PRESETS.tracePaymentAuthDrift.answer.summary,
-        timestamp: new Date().toLocaleTimeString(),
-        answer: DEMO_PRESETS.tracePaymentAuthDrift.answer,
-        status: 'AWAITING_CONFIRMATION',
-        epoch: nextEpoch,
-      };
-
-      setMessages((prev) => [...prev, assistantMsg]);
-      setIsLoading(false);
-    }, 350);
+  // 4 ONE-CLICK JUDGE EVALUATION PRESET HANDLERS
+  // Preset 1: Trace Decision & Sources (Slack + Linear)
+  const handlePresetDecisionTrace = () => {
+    handleSendQuery(
+      "Why was the payment gateway authentication method changed? Trace the decision back to its Slack and ticket sources."
+    );
   };
 
-  // Demo Scenario 2: "Reassign Ownership"
-  const handleDemoScenario2 = async (customQuery?: string) => {
-    const query = customQuery || DEMO_PRESETS.reassignOwnership.query;
-    setIsLoading(true);
-
-    const userMsg: ChatMessage = {
-      id: 'usr_' + Date.now(),
-      role: 'user',
-      content: query,
-      timestamp: new Date().toLocaleTimeString(),
-    };
-    setMessages((prev) => [...prev, userMsg]);
-
-    try {
-      if (isConnected) {
-        const res = await executeTurn(currentTenant, sessionId, query, epoch);
-        setEpoch(res.epoch);
-        setTurnState(res.turn);
-
-        const synth = res.turn.synthesis_traces[res.turn.synthesis_traces.length - 1]?.payload;
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: 'asst_' + Date.now(),
-            role: 'assistant',
-            content: synth?.summary || DEMO_PRESETS.reassignOwnership.answer.summary,
-            timestamp: new Date().toLocaleTimeString(),
-            answer: synth || DEMO_PRESETS.reassignOwnership.answer,
-            status: res.turn.status,
-            fail_reason: res.turn.fail_reason,
-            epoch: res.epoch,
-          },
-        ]);
-        return;
-      }
-    } catch {
-      // fallback to deterministic preset
-    }
-
-    // Deterministic simulation
-    setTimeout(() => {
-      const nextEpoch = epoch + 1;
-      setEpoch(nextEpoch);
-
-      setTurnState((prev) => ({
-        ...(prev || ({} as any)),
-        turn_id: 'turn_demo_ownership',
-        status: 'AWAITING_CONFIRMATION',
-        epoch: nextEpoch,
-        pending_proposal: DEMO_PRESETS.reassignOwnership.pending_proposal,
-      }));
-
-      const assistantMsg: ChatMessage = {
-        id: 'asst_' + Date.now(),
-        role: 'assistant',
-        content: DEMO_PRESETS.reassignOwnership.answer.summary,
-        timestamp: new Date().toLocaleTimeString(),
-        answer: DEMO_PRESETS.reassignOwnership.answer,
-        status: 'AWAITING_CONFIRMATION',
-        epoch: nextEpoch,
-      };
-
-      setMessages((prev) => [...prev, assistantMsg]);
-      setIsLoading(false);
-    }, 350);
+  // Preset 2: Who Owns What vs. Who Knows What (Formal vs SME)
+  const handlePresetWhoOwnsVsKnows = () => {
+    handleSendQuery(
+      "Who formally owns payment-gateway, which team is responsible, and who knows the most about its Ed25519 implementation?"
+    );
   };
 
-  // Demo Scenario 3: "Verify Tenant Isolation"
-  const handleDemoScenario3 = async (customQuery?: string) => {
-    const query = customQuery || DEMO_PRESETS.verifyTenantIsolation.query;
-    setIsLoading(true);
-
-    const userMsg: ChatMessage = {
-      id: 'usr_' + Date.now(),
-      role: 'user',
-      content: query,
-      timestamp: new Date().toLocaleTimeString(),
-    };
-    setMessages((prev) => [...prev, userMsg]);
-
-    try {
-      if (isConnected) {
-        const res = await executeTurn(currentTenant, sessionId, query, epoch);
-        setEpoch(res.epoch);
-        setTurnState(res.turn);
-
-        const synth = res.turn.synthesis_traces[res.turn.synthesis_traces.length - 1]?.payload;
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: 'asst_' + Date.now(),
-            role: 'assistant',
-            content: synth?.summary || DEMO_PRESETS.verifyTenantIsolation.answer.summary,
-            timestamp: new Date().toLocaleTimeString(),
-            answer: synth || DEMO_PRESETS.verifyTenantIsolation.answer,
-            status: res.turn.status,
-            fail_reason: res.turn.fail_reason,
-            epoch: res.epoch,
-          },
-        ]);
-        return;
-      }
-    } catch {
-      // fallback to deterministic preset
-    }
-
-    // Deterministic simulation
-    setTimeout(() => {
-      const nextEpoch = epoch + 1;
-      setEpoch(nextEpoch);
-
-      setTurnState((prev) => ({
-        ...(prev || ({} as any)),
-        turn_id: 'turn_demo_isolation',
-        status: 'COMPLETED',
-        epoch: nextEpoch,
-        pending_proposal: null,
-      }));
-
-      const assistantMsg: ChatMessage = {
-        id: 'asst_' + Date.now(),
-        role: 'assistant',
-        content: DEMO_PRESETS.verifyTenantIsolation.answer.summary,
-        timestamp: new Date().toLocaleTimeString(),
-        answer: DEMO_PRESETS.verifyTenantIsolation.answer,
-        status: 'COMPLETED',
-        epoch: nextEpoch,
-      };
-
-      setMessages((prev) => [...prev, assistantMsg]);
-      setIsLoading(false);
-    }, 350);
+  // Preset 3: Resolve Knowledge Drift (stale RFC reconciliation)
+  const handlePresetKnowledgeDrift = () => {
+    handleSendQuery(
+      "Check if the Payments Auth RFC v1 document has drifted from current decisions and stage an update to keep knowledge current."
+    );
   };
 
-  // Simulate Stale Snapshot: sends corrupted hash to test 409 rejection modal/banner
+  // Preset 4: Verify Strict Tenant Isolation (Zero-Leakage Fencing)
+  const handlePresetTenantIsolation = () => {
+    handleSendQuery(
+      "Query event-stream-cluster architecture and KRaft consensus decisions within current tenant scope to verify strict zero-leakage isolation."
+    );
+  };
+
+  // Backward-compatible aliases
+  const handleDemoScenario1 = handlePresetKnowledgeDrift;
+  const handleDemoScenario2 = handlePresetWhoOwnsVsKnows;
+  const handleDemoScenario3 = handlePresetTenantIsolation;
+
+  // Simulate Stale Snapshot: sends deliberately corrupted hash to verify HTTP 409 rejection fence
   const handleSimulateStaleSnapshot = async () => {
     setIsConfirming(true);
 
     try {
-      if (isConnected && turnState?.pending_proposal) {
+      if (turnState?.pending_proposal) {
         await confirmProposal(
           currentTenant,
           sessionId,
@@ -508,10 +288,8 @@ export default function DashboardPage() {
           'sha256:deliberately_invalid_hash_to_trigger_snapshot_mismatch'
         );
       } else {
-        throw {
-          status: 409,
-          data: DEMO_PRESETS.staleSnapshotConflict,
-        };
+        // Stage a sample proposal to demonstrate 409 conflict
+        await handleSendQuery(DEMO_PRESETS.tracePaymentAuthDrift.query);
       }
     } catch (err: any) {
       const conflictData = err.data || DEMO_PRESETS.staleSnapshotConflict;
@@ -551,30 +329,22 @@ export default function DashboardPage() {
     ]);
   };
 
-  // Confirm Mutation handler from Right Pane card: calls POST /api/confirm and updates live graph
+  // Confirm Mutation handler from Right Pane card: calls POST /api/confirm and updates live FalkorDB graph
   const handleConfirmProposal = async (proposalId: string, snapshotHash: string) => {
     setIsConfirming(true);
     const idempotencyKey = generateUUIDv7();
 
     try {
-      if (isConnected) {
-        const res = await confirmProposal(
-          currentTenant,
-          sessionId,
-          proposalId,
-          snapshotHash,
-          idempotencyKey
-        );
+      const res = await confirmProposal(
+        currentTenant,
+        sessionId,
+        proposalId,
+        snapshotHash,
+        idempotencyKey
+      );
 
-        if (res.epoch) setEpoch(res.epoch);
-      }
-
-      // Successful confirmation mutation apply
-      const nextEpoch = epoch + 1;
+      const nextEpoch = res.epoch || epoch + 1;
       setEpoch(nextEpoch);
-
-      const proposal = turnState?.pending_proposal;
-      const actionType = proposal?.proposed_action?.action_type || proposal?.action?.type;
 
       // Advance turn state to COMPLETED
       setTurnState((prev) => prev ? {
@@ -584,80 +354,8 @@ export default function DashboardPage() {
         pending_proposal: null,
       } : null);
 
-      const targetDocId = proposal?.proposed_action?.target_entity_id || proposal?.action?.document_id || 'doc_auth_rfc';
-      const targetDecId = proposal?.proposed_action?.new_value || proposal?.action?.superseding_decision_id || 'dec_ed25519_local';
-      const targetOwner = proposal?.proposed_action?.new_value || proposal?.action?.new_owner_email || 'aarav@acme.com';
-
-      // Live graph mutations on canvas
-      if (actionType === 'documentation_drift_fix' || actionType === 'MARK_DOCUMENT_ALIGNED') {
-        // Update Document status from stale to updated
-        setNodes((prevNodes) =>
-          prevNodes.map((n) =>
-            n.id === targetDocId
-              ? {
-                  ...n,
-                  properties: {
-                    ...n.properties,
-                    status: 'updated',
-                  },
-                }
-              : n
-          )
-        );
-
-        // Add [:ALIGNED_WITH] edge in links if not present
-        setLinks((prevLinks) => {
-          const exists = prevLinks.some(
-            (l) =>
-              (typeof l.source === 'object' ? (l.source as any).id : l.source) === targetDocId &&
-              (typeof l.target === 'object' ? (l.target as any).id : l.target) === targetDecId
-          );
-          if (exists) return prevLinks;
-          return [
-            ...prevLinks,
-            {
-              source: targetDocId,
-              target: targetDecId,
-              label: 'ALIGNED_WITH',
-              type: 'ALIGNED_WITH',
-              color: '#4E9F76',
-            },
-          ];
-        });
-
-        // Update timeline status
-        setTimeline((prev) =>
-          prev.map((item) =>
-            item.status === 'stale'
-              ? { ...item, status: 'active', title: `${item.title} (Reconciled)` }
-              : item
-          )
-        );
-      } else if (actionType === 'reassign_owner' || actionType === 'REASSIGN_OWNERSHIP') {
-        // Update System active owner
-        setNodes((prevNodes) =>
-          prevNodes.map((n) =>
-            n.label === 'System'
-              ? {
-                  ...n,
-                  properties: {
-                    ...n.properties,
-                    active_owner: targetOwner,
-                  },
-                }
-              : n
-          )
-        );
-
-        // Update active OWNS link
-        setLinks((prevLinks) =>
-          prevLinks.map((l) =>
-            l.type === 'OWNS'
-              ? { ...l, label: 'OWNS (Updated)' }
-              : l
-          )
-        );
-      }
+      // Re-fetch authoritative live graph directly from FalkorDB
+      await loadLiveTopology(currentTenant);
 
       // Add mutation applied receipt to chat
       setMessages((prev) => [
@@ -693,9 +391,28 @@ export default function DashboardPage() {
         status={turnState?.status || 'COMPLETED'}
       />
 
+      {/* Explicit FalkorDB Connection Required Error Banner */}
+      {connectionError && (
+        <div className="bg-[#B84A39]/20 border-b border-[#B84A39]/50 text-[#E4E7EB] px-4 py-2 text-xs flex items-center justify-between z-40">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-[#B84A39] shrink-0 animate-pulse" />
+            <span className="font-semibold text-[#E4E7EB]">
+              {connectionError}
+            </span>
+          </div>
+          <button
+            onClick={() => loadLiveTopology(currentTenant)}
+            className="flex items-center gap-1 text-[11px] font-mono text-[#D07D38] hover:text-[#E4E7EB] bg-[#20242D] px-2.5 py-1 rounded border border-[#2A2F3B] transition-colors"
+          >
+            <RefreshCw className="w-3 h-3" />
+            <span>Retry Connection</span>
+          </button>
+        </div>
+      )}
+
       {/* 3-Pane Executive Interface */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Pane (Chat & Grounded Evidence, 420px fixed width) */}
+        {/* Left Pane (Chat & Grounded Evidence, 400px fixed width) */}
         <LeftPane
           messages={messages}
           turnState={turnState}
@@ -703,6 +420,10 @@ export default function DashboardPage() {
           onSendQuery={handleSendQuery}
           onSelectEvidence={handleSelectEvidence}
           onHighlightEvidence={setHighlightedEvidenceId}
+          onPresetDecisionTrace={handlePresetDecisionTrace}
+          onPresetWhoOwnsVsKnows={handlePresetWhoOwnsVsKnows}
+          onPresetKnowledgeDrift={handlePresetKnowledgeDrift}
+          onPresetTenantIsolation={handlePresetTenantIsolation}
           onDemoScenario1={() => handleDemoScenario1()}
           onDemoScenario2={() => handleDemoScenario2()}
           onDemoScenario3={() => handleDemoScenario3()}
@@ -732,7 +453,7 @@ export default function DashboardPage() {
           }}
         />
 
-        {/* Right Pane (Timeline & Proposals, 360px fixed width) */}
+        {/* Right Pane (Timeline & Proposals, 380px fixed width) */}
         <RightPane
           timeline={timeline}
           pendingProposal={turnState?.pending_proposal || null}

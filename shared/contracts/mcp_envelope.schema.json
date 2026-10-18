@@ -46,7 +46,9 @@
         "content_hash": {
           "type": "string",
           "pattern": "^sha256:[0-9a-f]{64}$"
-        }
+        },
+        "source_type": { "type": "string" },
+        "author": { "type": "string" }
       }
     },
     "success": {

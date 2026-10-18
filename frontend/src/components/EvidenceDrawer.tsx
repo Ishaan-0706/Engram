@@ -12,7 +12,9 @@ import {
   Copy, 
   ShieldCheck, 
   MessageSquare,
-  BookOpen
+  BookOpen,
+  Ticket,
+  User
 } from 'lucide-react';
 
 interface EvidenceDrawerProps {
@@ -38,8 +40,24 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
     }
   };
 
-  const isSlack = evidence.source_uri.startsWith('slack://');
-  const isConfluence = evidence.source_uri.startsWith('confluence://');
+  const isSlack = evidence.source_uri.startsWith('slack://') || evidence.source_type === 'slack';
+  const isLinear = evidence.source_uri.startsWith('linear://') || evidence.source_type === 'linear';
+  const isConfluence = evidence.source_uri.startsWith('confluence://') || evidence.source_type === 'confluence';
+  const isNotion = evidence.source_uri.startsWith('notion://') || evidence.source_type === 'notion';
+
+  const slackChannelMatch = evidence.source_uri.match(/channels\/([a-zA-Z0-9_-]+)/);
+  const slackChannel = slackChannelMatch ? `#${slackChannelMatch[1]}` : '#inc-payments';
+
+  const ticketMatch = evidence.source_uri.match(/(?:issue\/|)([A-Z]+-\d+)/) || evidence.excerpt.match(/\b([A-Z]+-\d+)\b/);
+  const ticketId = ticketMatch ? ticketMatch[1] : 'PAY-402';
+
+  const author = evidence.author || (
+    evidence.excerpt.toLowerCase().includes('aarav') ? 'Aarav Mehta' :
+    evidence.excerpt.toLowerCase().includes('rohan') ? 'Rohan Verma' :
+    evidence.excerpt.toLowerCase().includes('priya') ? 'Priya Nair' :
+    evidence.excerpt.toLowerCase().includes('devin') ? 'Devin Vance' :
+    evidence.excerpt.toLowerCase().includes('elena') ? 'Elena Rostova' : null
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex overflow-hidden">
@@ -99,20 +117,41 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
               Source Provenance URI
             </span>
             <div className="bg-[#20242D] border border-[#2A2F3B] rounded p-3 space-y-2">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {isSlack ? (
-                  <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded font-medium bg-[#4E9F76]/15 text-[#4E9F76] border border-[#4E9F76]/30">
+                  <span className="inline-flex items-center gap-1.5 text-[10px] px-2.5 py-0.5 rounded font-medium bg-[#4E9F76]/15 text-[#4E9F76] border border-[#4E9F76]/30">
                     <MessageSquare className="w-3 h-3" />
-                    Slack Enterprise
+                    <span>Slack Chat</span>
+                    <span className="font-mono text-[9px] bg-[#4E9F76]/20 px-1 py-0.2 rounded font-semibold">{slackChannel}</span>
+                  </span>
+                ) : isLinear ? (
+                  <span className="inline-flex items-center gap-1.5 text-[10px] px-2.5 py-0.5 rounded font-medium bg-[#5E60CE]/15 text-[#5E60CE] border border-[#5E60CE]/30">
+                    <Ticket className="w-3 h-3" />
+                    <span>Linear Ticket</span>
+                    <span className="font-mono text-[9px] bg-[#5E60CE]/20 px-1 py-0.2 rounded font-bold">{ticketId}</span>
                   </span>
                 ) : isConfluence ? (
-                  <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded font-medium bg-[#4C78A8]/15 text-[#4C78A8] border border-[#4C78A8]/30">
+                  <span className="inline-flex items-center gap-1.5 text-[10px] px-2.5 py-0.5 rounded font-medium bg-[#4C78A8]/15 text-[#4C78A8] border border-[#4C78A8]/30">
                     <BookOpen className="w-3 h-3" />
-                    Confluence Wiki
+                    <span>Confluence RFC</span>
+                    <span className="font-mono text-[9px] bg-[#D07D38]/20 text-[#D07D38] px-1 py-0.2 rounded">stale</span>
+                  </span>
+                ) : isNotion ? (
+                  <span className="inline-flex items-center gap-1.5 text-[10px] px-2.5 py-0.5 rounded font-medium bg-[#D07D38]/15 text-[#D07D38] border border-[#D07D38]/30">
+                    <FileText className="w-3 h-3" />
+                    <span>Notion SOP</span>
+                    <span className="font-mono text-[9px] bg-[#D07D38]/20 text-[#D07D38] px-1 py-0.2 rounded">stale</span>
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded font-medium bg-[#2A2F3B] text-[#949BA6] border border-[#2A2F3B]">
-                    Document Store
+                    Enterprise Document
+                  </span>
+                )}
+
+                {author && (
+                  <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded font-medium bg-[#20242D] text-[#D4CEBF] border border-[#2A2F3B]">
+                    <User className="w-2.5 h-2.5 text-[#949BA6]" />
+                    <span>{author}</span>
                   </span>
                 )}
               </div>

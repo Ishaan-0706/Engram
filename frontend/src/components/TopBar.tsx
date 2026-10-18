@@ -63,10 +63,12 @@ export const TopBar: React.FC<TopBarProps> = ({
         <div className="flex items-center gap-1.5 text-[11px] font-mono text-[#949BA6]">
           <span
             className={`w-2 h-2 rounded-full ${
-              isConnected ? 'bg-[#4E9F76]' : 'bg-[#68707E]'
+              isConnected ? 'bg-[#4E9F76] shadow-[0_0_8px_rgba(78,159,118,0.4)]' : 'bg-[#68707E]'
             }`}
           />
-          <span>{isConnected ? 'FalkorDB Connected' : 'FalkorDB Standby'}</span>
+          <span className={isConnected ? 'text-[#E4E7EB]' : 'text-[#858D9A]'}>
+            {isConnected ? 'FalkorDB Live • 6379' : 'FalkorDB Offline • 6379'}
+          </span>
         </div>
 
         <div className="h-3 w-px bg-[#2A2F3B]" />

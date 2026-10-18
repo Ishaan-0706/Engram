@@ -17,9 +17,13 @@ interface LeftPaneProps {
   onSendQuery: (query: string) => void;
   onSelectEvidence: (evidence: EvidenceItem) => void;
   onHighlightEvidence: (evidenceId: string | null) => void;
-  onDemoScenario1: () => void;
-  onDemoScenario2: () => void;
-  onDemoScenario3: () => void;
+  onPresetDecisionTrace?: () => void;
+  onPresetWhoOwnsVsKnows?: () => void;
+  onPresetKnowledgeDrift?: () => void;
+  onPresetTenantIsolation?: () => void;
+  onDemoScenario1?: () => void;
+  onDemoScenario2?: () => void;
+  onDemoScenario3?: () => void;
   onSimulateStaleSnapshot?: () => void;
   onQuickDemo1?: () => void;
   onQuickDemo2?: () => void;
@@ -33,6 +37,10 @@ export const LeftPane: React.FC<LeftPaneProps> = ({
   onSendQuery,
   onSelectEvidence,
   onHighlightEvidence,
+  onPresetDecisionTrace,
+  onPresetWhoOwnsVsKnows,
+  onPresetKnowledgeDrift,
+  onPresetTenantIsolation,
   onDemoScenario1,
   onDemoScenario2,
   onDemoScenario3,
@@ -65,47 +73,68 @@ export const LeftPane: React.FC<LeftPaneProps> = ({
 
   const evidenceBag = turnState?.evidence_bag || {};
 
-  const handleRunScenario1 = onDemoScenario1 || onQuickDemo1;
-  const handleRunScenario2 = onDemoScenario2 || onQuickDemo2;
-  const handleRunScenario3 = onDemoScenario3 || onQuickDemo3;
+  const handleRunPreset1 = onPresetDecisionTrace || onDemoScenario1 || onQuickDemo1;
+  const handleRunPreset2 = onPresetWhoOwnsVsKnows || onDemoScenario2 || onQuickDemo2;
+  const handleRunPreset3 = onPresetKnowledgeDrift || onDemoScenario1;
+  const handleRunPreset4 = onPresetTenantIsolation || onDemoScenario3 || onQuickDemo3;
 
   return (
     <aside className="w-[400px] min-w-[400px] max-w-[400px] border-r border-[#2A2F3B] bg-[#191C23] flex flex-col h-[calc(100vh-3rem)] select-text relative">
-      {/* Preset Scenario Action Chips */}
-      <div className="px-3.5 py-2.5 border-b border-[#2A2F3B] bg-[#191C23] flex items-center gap-1.5 overflow-x-auto shrink-0">
-        <button
-          type="button"
-          onClick={handleRunScenario1}
-          disabled={isLoading}
-          className="bg-[#20242D] border border-[#2A2F3B] hover:border-[#3E4554] text-xs text-[#E4E7EB] px-2.5 py-1 rounded transition-colors whitespace-nowrap active:scale-[0.98] disabled:opacity-50"
-        >
-          ↗ Auth Drift
-        </button>
-        <button
-          type="button"
-          onClick={handleRunScenario2}
-          disabled={isLoading}
-          className="bg-[#20242D] border border-[#2A2F3B] hover:border-[#3E4554] text-xs text-[#E4E7EB] px-2.5 py-1 rounded transition-colors whitespace-nowrap active:scale-[0.98] disabled:opacity-50"
-        >
-          ⇄ Reassign Owner
-        </button>
-        <button
-          type="button"
-          onClick={handleRunScenario3}
-          disabled={isLoading}
-          className="bg-[#20242D] border border-[#2A2F3B] hover:border-[#3E4554] text-xs text-[#E4E7EB] px-2.5 py-1 rounded transition-colors whitespace-nowrap active:scale-[0.98] disabled:opacity-50"
-        >
-          ⊘ Tenant Isolation
-        </button>
+      {/* 4 One-Click Judge Evaluation Preset Chips */}
+      <div className="px-3 py-2 border-b border-[#2A2F3B] bg-[#191C23] flex items-center gap-1.5 overflow-x-auto shrink-0 scrollbar-none">
+        {handleRunPreset1 && (
+          <button
+            type="button"
+            onClick={handleRunPreset1}
+            disabled={isLoading}
+            title="Trace Decision & Sources (Slack + Linear)"
+            className="bg-[#20242D] border border-[#2A2F3B] hover:border-[#3E4554] text-xs text-[#E4E7EB] px-2 py-1 rounded transition-colors whitespace-nowrap active:scale-[0.98] disabled:opacity-50 text-[11px]"
+          >
+            1. Trace Decision
+          </button>
+        )}
+        {handleRunPreset2 && (
+          <button
+            type="button"
+            onClick={handleRunPreset2}
+            disabled={isLoading}
+            title="Who Formal Owns vs Who Knows What"
+            className="bg-[#20242D] border border-[#2A2F3B] hover:border-[#3E4554] text-xs text-[#E4E7EB] px-2 py-1 rounded transition-colors whitespace-nowrap active:scale-[0.98] disabled:opacity-50 text-[11px]"
+          >
+            2. Who Owns vs Knows
+          </button>
+        )}
+        {handleRunPreset3 && (
+          <button
+            type="button"
+            onClick={handleRunPreset3}
+            disabled={isLoading}
+            title="Detect & Resolve Knowledge Drift"
+            className="bg-[#20242D] border border-[#2A2F3B] hover:border-[#3E4554] text-xs text-[#E4E7EB] px-2 py-1 rounded transition-colors whitespace-nowrap active:scale-[0.98] disabled:opacity-50 text-[11px]"
+          >
+            3. Resolve Drift
+          </button>
+        )}
+        {handleRunPreset4 && (
+          <button
+            type="button"
+            onClick={handleRunPreset4}
+            disabled={isLoading}
+            title="Verify Strict Zero-Leakage Tenant Isolation"
+            className="bg-[#20242D] border border-[#2A2F3B] hover:border-[#3E4554] text-xs text-[#E4E7EB] px-2 py-1 rounded transition-colors whitespace-nowrap active:scale-[0.98] disabled:opacity-50 text-[11px]"
+          >
+            4. Tenant Isolation
+          </button>
+        )}
         {onSimulateStaleSnapshot && (
           <button
             type="button"
             onClick={onSimulateStaleSnapshot}
             disabled={isLoading}
             title="Simulate 409 Snapshot Conflict"
-            className="bg-[#20242D] border border-[#D07D38]/50 hover:border-[#D07D38] text-xs text-[#D07D38] px-2 py-1 rounded transition-colors whitespace-nowrap active:scale-[0.98] disabled:opacity-50 font-mono text-[11px]"
+            className="bg-[#20242D] border border-[#D07D38]/50 hover:border-[#D07D38] text-[#D07D38] px-2 py-1 rounded transition-colors whitespace-nowrap active:scale-[0.98] disabled:opacity-50 font-mono text-[10px]"
           >
-            ⚡ 409 Conflict
+            ⚡ 409
           </button>
         )}
       </div>

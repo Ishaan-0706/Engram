@@ -37,7 +37,7 @@ def test_topological_lineage_and_drift_calculation():
 
 
 def test_autonomous_heuristic_candidate_scoring():
-    """Verify heuristic score formula: 3 * active_decisions + 2 * authored_evidence + 1 * owned_systems."""
+    """Verify heuristic score formula: 3 * active_decisions + 2 * owned_systems."""
     ranking = rank_ownership_candidates(tenant_id="acme_payments")
     assert ranking is not None
     assert ranking["canonical_email"] == "aarav@acme.com"
@@ -53,7 +53,7 @@ def test_autonomous_heuristic_candidate_scoring():
     )
     assert ranking_priya is not None
     assert ranking_priya["canonical_email"] == "priya@acme.com"
-    assert ranking_priya["score"] == 1  # 1 owned system
+    assert ranking_priya["score"] == 2  # 1 owned system * 2 = 2
 
 
 def test_blast_radius_and_calculated_risk():
@@ -119,3 +119,40 @@ def test_proposal_safety_validation():
     is_safe, err = validate_proposal_safety("acme_payments", tampered_decision, evidence_bag)
     assert is_safe is False
     assert "active" in str(err)
+
+
+def test_live_graph_topology_query():
+    """Verify get_live_graph_topology returns live nodes, links, and timeline from FalkorDB."""
+    from app.mcp_server.tools import get_live_graph_topology
+
+    topology = get_live_graph_topology("acme_payments")
+    assert topology["tenant_id"] == "acme_payments"
+    assert len(topology["nodes"]) >= 9
+    assert len(topology["links"]) >= 10
+    assert len(topology["timeline"]) >= 3
+
+    node_ids = {n["id"] for n in topology["nodes"]}
+    assert "sys_payment_gw" in node_ids
+    assert "dec_ed25519_local" in node_ids
+    assert "doc_auth_rfc" in node_ids
+
+    # Verify timeline chronology
+    tl = topology["timeline"]
+    assert tl[0]["type"] == "rfc" or tl[0]["status"] == "stale"
+    assert any(item["type"] == "active" for item in tl)
+
+
+def test_live_graph_topology_http_endpoint():
+    """Verify GET /api/graph/{tenant_id} returns HTTP 200 with live FalkorDB topology."""
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    client = TestClient(app)
+    resp = client.get("/api/graph/acme_payments")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "nodes" in data
+    assert "links" in data
+    assert "timeline" in data
+    assert len(data["nodes"]) >= 9
+

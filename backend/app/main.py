@@ -34,12 +34,11 @@ from app.agent.state import (
     save_turn,
 )
 from app.mcp_server.action_tools import mark_document_updated, reassign_system_owner
+from app.mcp_server.tools import get_live_graph_topology
 
 from app.core.config import settings
 
 log = logging.getLogger(__name__)
-
-from app.core.config import settings
 
 # ---------------------------------------------------------------------------
 # Application factory
@@ -253,3 +252,28 @@ def api_confirm(
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     return receipt
+
+
+# ---------------------------------------------------------------------------
+# GET /api/graph/{tenant_id}
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/graph/{tenant_id}")
+def api_get_graph(tenant_id: str) -> dict[str, Any]:
+    """Expose live graph topology and chronological decision timeline directly from FalkorDB.
+
+    Returns live nodes, edges, and decision timeline.
+    If FalkorDB is unreachable, returns HTTP 503 Service Unavailable. Never returns hardcoded mock objects.
+    """
+    try:
+        topology = get_live_graph_topology(tenant_id)
+        return topology
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.exception("api_get_graph error for tenant=%s: %s", tenant_id, exc)
+        raise HTTPException(
+            status_code=503,
+            detail=f"FalkorDB Connection Required: Unable to load live graph topology for '{tenant_id}'. Error: {exc}",
+        )

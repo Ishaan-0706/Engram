@@ -1,4 +1,4 @@
-import { TurnState } from '@/types';
+import { TurnState, GraphNode, GraphLink, TimelineItem } from '@/types';
 import { generateUUIDv7 } from './uuid';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -22,6 +22,27 @@ export interface ErrorConflictPayload {
   current_snapshot_hash: string;
   epoch: number;
   message?: string;
+}
+
+export interface GraphTopologyResponse {
+  tenant_id: string;
+  nodes: GraphNode[];
+  links: GraphLink[];
+  timeline: TimelineItem[];
+}
+
+export async function fetchGraphTopology(tenantId: string): Promise<GraphTopologyResponse> {
+  const normalized = tenantId.toLowerCase().replace(/\s+/g, '_');
+  const res = await fetch(`${API_BASE}/api/graph/${normalized}`);
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    const msg = errorData.detail || `HTTP ${res.status}: Failed to fetch graph topology`;
+    const err = new Error(msg);
+    (err as any).status = res.status;
+    (err as any).data = errorData;
+    throw err;
+  }
+  return res.json();
 }
 
 export async function executeTurn(
@@ -111,18 +132,10 @@ export async function confirmProposal(
 
 export async function checkConnection(): Promise<boolean> {
   try {
-    const res = await fetch(`${API_BASE}/api/resume`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        tenant_id: 'health_check',
-        session_id: 'ping',
-        last_known_epoch: 0,
-      }),
-    });
-    // Even a 410 or 404 response means the server is reachable and active!
-    return res.status === 410 || res.status === 200 || res.status === 404;
+    const res = await fetch(`${API_BASE}/api/graph/acme_payments`);
+    return res.ok;
   } catch {
     return false;
   }
 }
+

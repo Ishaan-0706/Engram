@@ -13,7 +13,12 @@ import {
   FileText, 
   Loader2,
   AlertTriangle,
-  GitCommit
+  GitCommit,
+  Shield,
+  User,
+  Users,
+  FolderGit2,
+  Award
 } from 'lucide-react';
 
 interface RightPaneProps {
@@ -175,16 +180,95 @@ export const RightPane: React.FC<RightPaneProps> = ({
               </div>
             </div>
 
-            {selectedNode.properties && (
-              <div className="bg-[#191C23] border border-[#2A2F3B] rounded p-2 space-y-1 font-mono text-[10px]">
-                {Object.entries(selectedNode.properties).map(([k, v]) => (
-                  <div key={k} className="flex flex-col pb-1 border-b border-[#2A2F3B] last:border-none last:pb-0">
-                    <span className="text-[#858D9A] uppercase text-[9px] font-sans">{k.replace(/_/g, ' ')}:</span>
-                    <span className="text-[#E4E7EB] break-words leading-tight mt-0.5">{String(v)}</span>
+            {selectedNode.label === 'System' ? (
+              <div className="space-y-3 pt-1">
+                {/* 1. Formal Accountability (Who Owns What) */}
+                <div className="bg-[#191C23] border border-[#2A2F3B] rounded p-2.5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-[#4E9F76] font-semibold flex items-center gap-1.5">
+                      <Shield className="w-3 h-3 text-[#4E9F76]" />
+                      Formal Accountability (Who Owns What)
+                    </span>
+                    <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-[#4E9F76]/15 text-[#4E9F76] border border-[#4E9F76]/30">
+                      ACTIVE OWNS
+                    </span>
                   </div>
-                ))}
+                  <div className="space-y-1.5 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[#858D9A] text-[11px]">Active Owner:</span>
+                      <span className="text-[#E4E7EB] font-medium text-[11px]">{selectedNode.properties?.active_owner || 'Priya Nair (priya@acme.com)'}</span>
+                    </div>
+                    {selectedNode.properties?.team && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-[#858D9A] text-[11px]">Responsible Team:</span>
+                        <span className="inline-flex items-center gap-1 text-[10px] bg-[#20242D] border border-[#2A2F3B] px-1.5 py-0.2 rounded text-[#949BA6]">
+                          <Users className="w-2.5 h-2.5 text-[#949BA6]" />
+                          {selectedNode.properties.team}
+                        </span>
+                      </div>
+                    )}
+                    {selectedNode.properties?.project && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-[#858D9A] text-[11px]">Active Project:</span>
+                        <span className="inline-flex items-center gap-1 text-[10px] bg-[#20242D] border border-[#2A2F3B] px-1.5 py-0.2 rounded text-[#858D9A]">
+                          <FolderGit2 className="w-2.5 h-2.5 text-[#858D9A]" />
+                          {selectedNode.properties.project}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 2. Subject Matter Experts (Who Knows What) */}
+                <div className="bg-[#191C23] border border-[#2A2F3B] rounded p-2.5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-[#5E60CE] font-semibold flex items-center gap-1.5">
+                      <Award className="w-3 h-3 text-[#5E60CE]" />
+                      Subject Matter Experts (Who Knows What)
+                    </span>
+                    <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-[#5E60CE]/15 text-[#5E60CE] border border-[#5E60CE]/30">
+                      COMPUTED SME
+                    </span>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    {Array.isArray(selectedNode.properties?.sme_experts) && selectedNode.properties.sme_experts.length > 0 ? (
+                      selectedNode.properties.sme_experts.map((exp: any, i: number) => (
+                        <div key={i} className="bg-[#20242D] border border-[#2A2F3B] rounded p-2 text-[11px] space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-[#E4E7EB]">{exp.name}</span>
+                            <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-[#5E60CE]/20 text-[#E4E7EB] border border-[#5E60CE]/40">
+                              Score: {exp.knowledge_score}
+                            </span>
+                          </div>
+                          <div className="text-[10px] font-mono text-[#858D9A] truncate">{exp.email}</div>
+                          <div className="flex items-center gap-1 text-[9px] text-[#949BA6]">
+                            <span>{exp.decisions_led} decisions led</span>
+                            <span>•</span>
+                            <span>{exp.artifacts_authored} artifacts authored ({exp.artifact_types?.join(', ') || 'artifacts'})</span>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-[11px] text-[#949BA6] italic p-1">
+                        Ranked SMEs computed dynamically from authored chats, tickets, and decisions.
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-            )}
+            ) : selectedNode.properties ? (
+              <div className="bg-[#191C23] border border-[#2A2F3B] rounded p-2 space-y-1 font-mono text-[10px]">
+                {Object.entries(selectedNode.properties)
+                  .filter(([k]) => k !== 'sme_experts')
+                  .map(([k, v]) => (
+                    <div key={k} className="flex flex-col pb-1 border-b border-[#2A2F3B] last:border-none last:pb-0">
+                      <span className="text-[#858D9A] uppercase text-[9px] font-sans">{k.replace(/_/g, ' ')}:</span>
+                      <span className="text-[#E4E7EB] break-words leading-tight mt-0.5">{String(v)}</span>
+                    </div>
+                  ))}
+              </div>
+            ) : null}
 
             {selectedNode.label === 'Evidence' && onSelectEvidence && selectedNode.properties && (
               <button

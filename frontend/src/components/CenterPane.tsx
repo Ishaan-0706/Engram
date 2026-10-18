@@ -10,7 +10,8 @@ import {
   ZoomOut, 
   Sparkles,
   X,
-  Crosshair
+  Crosshair,
+  AlertTriangle
 } from 'lucide-react';
 
 // Dynamic import with SSR disabled since react-force-graph-2d requires browser window & canvas
@@ -328,27 +329,42 @@ export const CenterPane: React.FC<CenterPaneProps> = ({
       {/* Force Graph Canvas Container */}
       <div ref={containerRef} className="flex-1 w-full h-full cursor-grab active:cursor-grabbing">
         {dimensions.width > 0 && dimensions.height > 0 && (
-          <ForceGraph2D
-            ref={fgRef}
-            width={dimensions.width}
-            height={dimensions.height}
-            graphData={{ nodes, links }}
-            nodeCanvasObject={drawNode}
-            linkCanvasObject={drawLink}
-            backgroundColor="#13151A"
-            d3VelocityDecay={0.32}
-            cooldownTicks={120}
-            onEngineStop={() => {
-              if (!hasAutoFittedRef.current && fgRef.current) {
-                fgRef.current.zoomToFit(400, 70);
-                hasAutoFittedRef.current = true;
-              }
-            }}
-            onNodeClick={(node: any) => {
-              setSelectedNode(node);
-              if (onNodeClick) onNodeClick(node);
-            }}
-          />
+          nodes.length > 0 ? (
+            <ForceGraph2D
+              ref={fgRef}
+              width={dimensions.width}
+              height={dimensions.height}
+              graphData={{ nodes, links }}
+              nodeCanvasObject={drawNode}
+              linkCanvasObject={drawLink}
+              backgroundColor="#13151A"
+              d3VelocityDecay={0.32}
+              cooldownTicks={120}
+              onEngineStop={() => {
+                if (!hasAutoFittedRef.current && fgRef.current) {
+                  fgRef.current.zoomToFit(400, 70);
+                  hasAutoFittedRef.current = true;
+                }
+              }}
+              onNodeClick={(node: any) => {
+                setSelectedNode(node);
+                if (onNodeClick) onNodeClick(node);
+              }}
+            />
+          ) : (
+            <div className="w-full h-full flex flex-col items-center justify-center p-8 text-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-[#B84A39]/15 border border-[#B84A39]/40 flex items-center justify-center text-[#B84A39]">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <h3 className="text-sm font-semibold text-[#E4E7EB]">FalkorDB Connection Required</h3>
+              <p className="text-xs text-[#949BA6] max-w-md leading-relaxed">
+                Start FalkorDB on port 6379 to load live graph topology. Zero mock fallbacks active.
+              </p>
+              <code className="text-[11px] font-mono bg-[#191C23] border border-[#2A2F3B] px-3 py-1.5 rounded text-[#D07D38]">
+                docker run -p 6379:6379 -it --rm falkordb/falkordb:latest
+              </code>
+            </div>
+          )
         )}
       </div>
 
@@ -445,6 +461,14 @@ export const CenterPane: React.FC<CenterPaneProps> = ({
         <div className="flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full bg-[#5E60CE]" />
           <span className="text-[#E4E7EB]">Evidence</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-[#949BA6]" />
+          <span className="text-[#E4E7EB]">Team</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-[#858D9A]" />
+          <span className="text-[#E4E7EB]">Project</span>
         </div>
 
         <div className="h-3 w-px bg-[#2A2F3B] mx-1" />

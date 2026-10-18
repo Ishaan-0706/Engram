@@ -160,6 +160,24 @@ def seed_nexus_infra(
         },
     )
 
+    # Team & Project
+    graph.query(
+        """
+        MERGE (t:Team {id: $team_id})
+        SET t.name = $team_name
+        MERGE (proj:Project {id: $proj_id})
+        SET proj.name = $proj_name,
+            proj.status = $proj_status
+        """,
+        {
+            "team_id": "team_platform_sre",
+            "team_name": "Platform Reliability",
+            "proj_id": "proj_kafka_kraft",
+            "proj_name": "KRaft Consensus Upgrade",
+            "proj_status": "in_progress",
+        },
+    )
+
     # System
     graph.query(
         """
@@ -223,7 +241,21 @@ def seed_nexus_infra(
         },
     )
 
-    # Source & Evidence
+    # Sources & Evidence (Linear ticket + Slack chat + Notion doc)
+    slack_excerpt = (
+        "INC-KAFKA Slack incident thread (#inc-kafka): Elena Rostova reported cross-AZ "
+        "heartbeat packet drops causing broker split-brain during ZooKeeper leader elections."
+    )
+    slack_uri = "slack://channels/inc-kafka/p1723600000"
+    slack_hash = hashlib.sha256(f"{slack_excerpt}\n{slack_uri}".encode("utf-8")).hexdigest()
+
+    notion_excerpt = (
+        "Event Bus Partitioning SOP v2 (notion://nexus/eng/event-bus-v2): Elena Rostova runbook "
+        "specifying ZooKeeper ensemble controller configuration for partition rebalances."
+    )
+    notion_uri = "notion://nexus/eng/event-bus-v2"
+    notion_hash = hashlib.sha256(f"{notion_excerpt}\n{notion_uri}".encode("utf-8")).hexdigest()
+
     graph.query(
         """
         MERGE (src:Source {id: $id})
@@ -243,6 +275,8 @@ def seed_nexus_infra(
         """
         MERGE (evi:Evidence {id: $id})
         SET evi.record_id = $record_id,
+            evi.source_type = $source_type,
+            evi.author = $author,
             evi.excerpt = $excerpt,
             evi.source_uri = $source_uri,
             evi.source_timestamp = $source_timestamp,
@@ -252,6 +286,8 @@ def seed_nexus_infra(
         {
             "id": "evi_018f_kraft_consensus",
             "record_id": "dec_018f_kraft",
+            "source_type": "linear",
+            "author": "devin@nexus.io",
             "excerpt": EXCERPT,
             "source_uri": SOURCE_URI,
             "source_timestamp": SOURCE_TIMESTAMP,
@@ -260,78 +296,98 @@ def seed_nexus_infra(
         },
     )
 
+    graph.query(
+        """
+        MERGE (src:Source {id: 'src_018f_slack_inc'})
+        SET src.uri = $slack_uri,
+            src.source_type = 'slack',
+            src.content_hash = $slack_hash
+        MERGE (evi:Evidence {id: 'evi_018f_zk_heartbeat'})
+        SET evi.record_id = 'dec_018f_kraft',
+            evi.source_type = 'slack',
+            evi.author = 'elena@nexus.io',
+            evi.excerpt = $slack_excerpt,
+            evi.source_uri = $slack_uri,
+            evi.source_timestamp = '2026-08-14T14:15:00Z',
+            evi.valid_from = 1723640000000,
+            evi.content_hash = $slack_hash
+        MERGE (src_doc:Source {id: 'src_018f_notion_runbook'})
+        SET src_doc.uri = $notion_uri,
+            src_doc.source_type = 'notion',
+            src_doc.content_hash = $notion_hash
+        MERGE (evi_doc:Evidence {id: 'evi_018f_sop_runbook'})
+        SET evi_doc.record_id = 'doc_018f_kafka_runbook',
+            evi_doc.source_type = 'notion',
+            evi_doc.author = 'elena@nexus.io',
+            evi_doc.excerpt = $notion_excerpt,
+            evi_doc.source_uri = $notion_uri,
+            evi_doc.source_timestamp = '2026-06-10T10:00:00Z',
+            evi_doc.valid_from = 1718000000000,
+            evi_doc.content_hash = $notion_hash
+        """,
+        {
+            "slack_uri": slack_uri,
+            "slack_excerpt": slack_excerpt,
+            "slack_hash": slack_hash,
+            "notion_uri": notion_uri,
+            "notion_excerpt": notion_excerpt,
+            "notion_hash": notion_hash,
+        },
+    )
+
     # 3. Seed Relationships
     log.info("Creating relationships in %s...", GRAPH_NAME)
 
-    # (elena)-[:OWNS {valid_from: 1710000000000, valid_to: null}]->(sys_018f_kafka)
     graph.query(
         """
-        MATCH (p:Person {id: 'usr_018f_elena'})
-        MATCH (s:System {id: 'sys_018f_kafka'})
-        CREATE (p)-[:OWNS {valid_from: 1710000000000, valid_to: null}]->(s)
-        """
-    )
+        MATCH (devin:Person {id: 'usr_018f_devin'}),
+              (elena:Person {id: 'usr_018f_elena'}),
+              (team:Team {id: 'team_platform_sre'}),
+              (proj:Project {id: 'proj_kafka_kraft'}),
+              (s:System {id: 'sys_018f_kafka'}),
+              (doc:Document {id: 'doc_018f_kafka_runbook'}),
+              (zk:Decision {id: 'dec_018f_zookeeper'}),
+              (kraft:Decision {id: 'dec_018f_kraft'}),
+              (evi_ticket:Evidence {id: 'evi_018f_kraft_consensus'}),
+              (src_ticket:Source {id: 'src_018f_linear_eng_4091'}),
+              (evi_slack:Evidence {id: 'evi_018f_zk_heartbeat'}),
+              (src_slack:Source {id: 'src_018f_slack_inc'}),
+              (evi_doc:Evidence {id: 'evi_018f_sop_runbook'}),
+              (src_doc:Source {id: 'src_018f_notion_runbook'})
+        CREATE
+            /* People & Teams */
+            (devin)-[:MEMBER_OF {role: 'Principal SRE'}]->(team),
+            (elena)-[:MEMBER_OF {role: 'Platform Lead'}]->(team),
+            (team)-[:RESPONSIBLE_FOR]->(s),
 
-    # (doc_018f_kafka_runbook)-[:DOCUMENTS]->(sys_018f_kafka)
-    graph.query(
-        """
-        MATCH (doc:Document {id: 'doc_018f_kafka_runbook'})
-        MATCH (s:System {id: 'sys_018f_kafka'})
-        MERGE (doc)-[:DOCUMENTS]->(s)
-        """
-    )
+            /* Ownership (formal accountability) */
+            (elena)-[:OWNS {valid_from: 1710000000000, valid_to: null}]->(s),
 
-    # (doc_018f_kafka_runbook)-[:PROPOSED]->(dec_018f_zookeeper)
-    graph.query(
-        """
-        MATCH (doc:Document {id: 'doc_018f_kafka_runbook'})
-        MATCH (dec:Decision {id: 'dec_018f_zookeeper'})
-        MERGE (doc)-[:PROPOSED]->(dec)
-        """
-    )
+            /* Systems & Projects */
+            (s)-[:PART_OF]->(proj),
+            (kraft)-[:IMPACTS_PROJECT]->(proj),
 
-    # (dec_018f_kraft)-[:AFFECTS]->(sys_018f_kafka)
-    graph.query(
-        """
-        MATCH (dec:Decision {id: 'dec_018f_kraft'})
-        MATCH (s:System {id: 'sys_018f_kafka'})
-        MERGE (dec)-[:AFFECTS]->(s)
-        """
-    )
+            /* Documents & Decisions */
+            (doc)-[:DOCUMENTS]->(s),
+            (doc)-[:PROPOSED]->(zk),
+            (kraft)-[:AFFECTS]->(s),
+            (zk)-[:AFFECTS]->(s),
+            (kraft)-[:SUPERSEDES {reason: 'Cross-AZ consensus timeouts'}]->(zk),
+            (devin)-[:ESTABLISHED]->(kraft),
 
-    # (dec_018f_kraft)-[:SUPERSEDES {reason: "Cross-AZ consensus timeouts"}]->(dec_018f_zookeeper)
-    graph.query(
-        """
-        MATCH (kraft:Decision {id: 'dec_018f_kraft'})
-        MATCH (zk:Decision {id: 'dec_018f_zookeeper'})
-        MERGE (kraft)-[:SUPERSEDES {reason: 'Cross-AZ consensus timeouts'}]->(zk)
-        """
-    )
+            /* Authorship */
+            (devin)-[:AUTHORED]->(evi_ticket),
+            (elena)-[:AUTHORED]->(evi_slack),
+            (elena)-[:AUTHORED]->(evi_doc),
+            (elena)-[:AUTHORED]->(doc),
 
-    # (devin)-[:ESTABLISHED]->(dec_018f_kraft)
-    graph.query(
-        """
-        MATCH (devin:Person {id: 'usr_018f_devin'})
-        MATCH (kraft:Decision {id: 'dec_018f_kraft'})
-        MERGE (devin)-[:ESTABLISHED]->(kraft)
-        """
-    )
-
-    # (dec_018f_kraft)-[:SUPPORTED_BY]->(evidence)
-    graph.query(
-        """
-        MATCH (kraft:Decision {id: 'dec_018f_kraft'})
-        MATCH (evi:Evidence {id: 'evi_018f_kraft_consensus'})
-        MERGE (kraft)-[:SUPPORTED_BY]->(evi)
-        """
-    )
-
-    # (evidence)-[:PART_OF]->(source)
-    graph.query(
-        """
-        MATCH (evi:Evidence {id: 'evi_018f_kraft_consensus'})
-        MATCH (src:Source {id: 'src_018f_linear_eng_4091'})
-        MERGE (evi)-[:PART_OF]->(src)
+            /* Multi-Source Evidence grounding */
+            (kraft)-[:SUPPORTED_BY]->(evi_ticket),
+            (evi_ticket)-[:PART_OF]->(src_ticket),
+            (kraft)-[:SUPPORTED_BY]->(evi_slack),
+            (evi_slack)-[:PART_OF]->(src_slack),
+            (zk)-[:SUPPORTED_BY]->(evi_doc),
+            (evi_doc)-[:PART_OF]->(src_doc)
         """
     )
 

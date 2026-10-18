@@ -10,8 +10,10 @@ MCP_QUERY_TIMEOUT_MS = settings.GRAPH_QUERY_TIMEOUT_MS
 
 def resolve_tenant_graph_name(tenant_id: str) -> str:
     tid = (tenant_id or "").strip()
-    if not tid or any(c in tid for c in " \n\t"):
+    if not tid:
         raise ValueError("tenant_id must be a non-empty token")
+    if " " in tid or "\t" in tid or "\n" in tid:
+        tid = tid.lower().replace(" ", "_").replace("\t", "_").replace("\n", "_")
     if tid.startswith("tenant_") or ":" in tid:
         return tid
     return f"tenant_{tid}"

@@ -1,6 +1,6 @@
 export type Tenant = 'Acme Payments' | 'Nexus Infra';
 
-export type EntityLabel = 'Person' | 'System' | 'Decision' | 'Document' | 'Evidence';
+export type EntityLabel = 'Person' | 'System' | 'Decision' | 'Document' | 'Evidence' | 'Team' | 'Project' | 'Source';
 
 export interface EvidenceItem {
   id: string;
@@ -9,6 +9,8 @@ export interface EvidenceItem {
   source_uri: string;
   source_timestamp: string;
   content_hash: string;
+  source_type?: string;
+  author?: string;
 }
 
 export interface StatementClaim {
