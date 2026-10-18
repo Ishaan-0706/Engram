@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-ElevenLabs Voiceover Generation Script for Company Brain Demo
-=============================================================
+ElevenLabs Voiceover Generation Script for Engram (Company Brain Track Demo)
+=============================================================================
 
 This script converts the 5-scene narration script for our 1080p HD demo video
 into realistic studio-quality voiceover audio using ElevenLabs Text-to-Speech API.
@@ -37,8 +37,8 @@ SCENES = [
         "timestamp": "0:00 - 0:15",
         "duration_target": "15s",
         "text": (
-            "Welcome to Company Brain, our hackathon submission for Graph Hacks. "
-            "Company Brain unifies fragmented enterprise knowledge across documents, tickets, team chats, "
+            "Welcome to Engram, our hackathon submission for the Company Brain track in Graph Hacks. "
+            "Engram unifies fragmented enterprise knowledge across documents, tickets, team chats, "
             "and architecture decisions into a single high-performance FalkorDB knowledge graph. "
             "As shown in the live topology, entities like the payment gateway, authorization RFCs, "
             "and engineering leads are connected with real-time multi-hop graph semantics—powered "
@@ -51,7 +51,7 @@ SCENES = [
         "timestamp": "0:15 - 0:35",
         "duration_target": "20s",
         "text": (
-            "When asking why an architecture decision was made, Company Brain does not hallucinate. "
+            "When asking why an architecture decision was made, Engram does not hallucinate. "
             "It traverses the FalkorDB graph to trace decisions back to their exact historical sources. "
             "Here, the payment gateway authentication change is linked directly to a high-priority incident "
             "discussion in Slack channel inc-payments and Linear ticket PAY-402. "
@@ -65,7 +65,7 @@ SCENES = [
         "timestamp": "0:35 - 0:50",
         "duration_target": "15s",
         "text": (
-            "Next, Company Brain resolves the critical enterprise distinction between formal ownership "
+            "Next, Engram resolves the critical enterprise distinction between formal ownership "
             "and subject matter expertise. In the inspector, Priya Nair is identified as the active owner "
             "with formal accountability via the OWNS relationship. "
             "Simultaneously, FalkorDB calculates subject matter expertise dynamically from authored decisions, "
@@ -79,7 +79,7 @@ SCENES = [
         "duration_target": "20s",
         "text": (
             "Over time, documentation drifts from code and production reality. "
-            "Company Brain detects that the Payments Auth RFC is stale and out of sync with current "
+            "Engram detects that the Payments Auth RFC is stale and out of sync with current "
             "Ed25519 authentication decisions. It stages a mutation proposal diff with calculated "
             "blast radius and divergence hops. When confirmed, FalkorDB commits an atomic, "
             "two-phase CAS graph update, marking the document aligned with zero database conflict."
@@ -94,7 +94,7 @@ SCENES = [
             "Finally, enterprise security demands strict multi-tenant isolation. "
             "Switching tenant context from Acme Payments to Nexus Infra immediately reloads an isolated "
             "Kafka and KRaft consensus topology. With zero cross-tenant data leakage and hard cryptographic "
-            "boundaries, Company Brain demonstrates autonomous, enterprise-grade knowledge architecture "
+            "boundaries, Engram demonstrates autonomous, enterprise-grade knowledge architecture "
             "powered by FalkorDB."
         ),
     },
@@ -154,7 +154,7 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
 
     print("==================================================================")
-    print("  ElevenLabs Voiceover Generator — Company Brain Demo (1080p HD)  ")
+    print("      ElevenLabs Voiceover Generator — Engram Demo (1080p HD)     ")
     print("==================================================================")
     print(f"Voice ID:    {args.voice_id}")
     print(f"Model ID:    {MODEL_ID}")

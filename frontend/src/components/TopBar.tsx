@@ -32,7 +32,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           <Terminal className="w-3.5 h-3.5 text-[#4C78A8]" />
         </div>
         <div className="flex items-center gap-2 text-xs">
-          <span className="font-semibold text-[#E4E7EB] tracking-tight">Company Brain</span>
+          <span className="font-semibold text-[#E4E7EB] tracking-tight">Engram</span>
           <span className="text-[#858D9A]">/</span>
           <span className="text-[#949BA6] font-mono text-[11px]">
             {currentTenant} <span className="text-[#858D9A]">/</span> {primarySystem}

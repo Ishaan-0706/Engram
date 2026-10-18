@@ -15,7 +15,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Company Brain | Executive Console',
+  title: 'Engram | Enterprise Knowledge Architecture (FalkorDB)',
   description: 'Enterprise Knowledge Graph, deterministic grounded evidence synthesis, and 2PC proposal state machine.',
 };
 

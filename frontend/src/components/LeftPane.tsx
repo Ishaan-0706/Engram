@@ -147,7 +147,7 @@ export const LeftPane: React.FC<LeftPaneProps> = ({
               <Bot className="w-4 h-4 text-[#4C78A8]" />
             </div>
             <div>
-              <h3 className="text-xs font-semibold text-[#E4E7EB]">Company Brain Online</h3>
+              <h3 className="text-xs font-semibold text-[#E4E7EB]">Engram Online</h3>
               <p className="text-[11px] text-[#949BA6] max-w-[260px] mt-1 leading-relaxed">
                 Grounded conversational synthesis across FalkorDB and company architecture records.
               </p>
@@ -172,7 +172,7 @@ export const LeftPane: React.FC<LeftPaneProps> = ({
               ) : (
                 <>
                   <Bot className="w-3 h-3 text-[#4C78A8]" />
-                  <span>Company Brain</span>
+                  <span>Engram</span>
                   {msg.epoch !== undefined && (
                     <span className="text-[9px] bg-[#20242D] text-[#858D9A] px-1 py-0.2 rounded border border-[#2A2F3B]">
                       epoch: {msg.epoch}
@@ -276,8 +276,8 @@ export const LeftPane: React.FC<LeftPaneProps> = ({
             value={inputQuery}
             onChange={(e) => setInputQuery(e.target.value)}
             disabled={isLoading}
-            placeholder="Ask Company Brain..."
-            aria-label="Ask Company Brain"
+            placeholder="Ask Engram..."
+            aria-label="Ask Engram"
             className="w-full bg-transparent text-xs text-[#E4E7EB] placeholder-[#858D9A] focus:outline-none pr-6 disabled:opacity-50"
           />
           <div className="absolute right-2.5 flex items-center text-[#858D9A] pointer-events-none">
