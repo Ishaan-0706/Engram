@@ -220,20 +220,30 @@ def test_cross_tenant_isolation(live_client: TestClient) -> None:
     # Ensure zero entities from acme_payments leaked into nexus_infra turn
     acme_forbidden_ids = {
         "sys_payment_gw",
+        "sys_settlement",
         "doc_auth_rfc",
         "dec_oauth_introspection",
+        "dec_oauth_introspect",
         "dec_ed25519_local",
         "usr_018f_priya",
         "usr_018f_aarav",
         "usr_018f_rohan",
+        "person_priya",
+        "person_aarav",
+        "person_rohan",
         "team_core_pay",
+        "team_core_payments",
+        "team_ledger",
         "proj_zero_trust_2026",
+        "proj_zero_trust",
         "src_slack_inc",
         "src_linear_pay_402",
         "src_confluence_rfc",
         "evi_018f_latency_auth",
         "evi_018f_ticket_pay402",
         "evi_018f_rfc_proposal",
+        "evi_slack_inc",
+        "evi_doc_auth_rfc",
     }
 
     for forbidden in acme_forbidden_ids:
@@ -309,16 +319,16 @@ def test_who_owns_and_who_knows(live_client: TestClient) -> None:
     )
     assert active_owner is not None
     assert active_owner["properties"]["display_name"] == "Priya Nair"
-    assert active_owner["properties"]["canonical_email"] == "priya@acme.com"
+    assert active_owner["properties"]["canonical_email"] in ("priya@acme-synthetic.internal", "priya@acme.com")
 
     team = next((r for r in records if r.get("label") == "Team"), None)
     assert team is not None
-    assert team["id"] == "team_core_pay"
+    assert team["id"] in ("team_core_payments", "team_core_pay")
     assert "Core Payments" in team["properties"]["name"]
 
     project = next((r for r in records if r.get("label") == "Project"), None)
     assert project is not None
-    assert project["id"] == "proj_zero_trust_2026"
+    assert project["id"] in ("proj_zero_trust", "proj_zero_trust_2026")
 
     # Computed SME checks
     smes = [r for r in records if r.get("label") == "Person" and "knowledge_score" in r.get("properties", {})]
@@ -479,20 +489,30 @@ def test_strict_multi_tenant_isolation(live_client: TestClient) -> None:
 
     acme_forbidden_ids = {
         "sys_payment_gw",
+        "sys_settlement",
         "doc_auth_rfc",
         "dec_oauth_introspection",
+        "dec_oauth_introspect",
         "dec_ed25519_local",
         "usr_018f_priya",
         "usr_018f_aarav",
         "usr_018f_rohan",
+        "person_priya",
+        "person_aarav",
+        "person_rohan",
         "team_core_pay",
+        "team_core_payments",
+        "team_ledger",
         "proj_zero_trust_2026",
+        "proj_zero_trust",
         "src_slack_inc",
         "src_linear_pay_402",
         "src_confluence_rfc",
         "evi_018f_latency_auth",
         "evi_018f_ticket_pay402",
         "evi_018f_rfc_proposal",
+        "evi_slack_inc",
+        "evi_doc_auth_rfc",
     }
 
     for forbidden in acme_forbidden_ids:

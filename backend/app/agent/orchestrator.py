@@ -300,13 +300,13 @@ def _default_synthesize(
             next((r for r in records if r.get("label") == "Person"), None)
         )
         owner_name = owner_node.get("properties", {}).get("display_name") if owner_node else "Priya Nair"
-        owner_email = owner_node.get("properties", {}).get("canonical_email") if owner_node else "priya@acme.com"
+        owner_email = owner_node.get("properties", {}).get("canonical_email") if owner_node else "priya@acme-synthetic.internal"
 
         team_node = next((r for r in records if r.get("label") == "Team"), None)
         team_name = team_node.get("properties", {}).get("name") if team_node else "Core Payments & Security"
 
         project_node = next((r for r in records if r.get("label") == "Project"), None)
-        project_name = project_node.get("properties", {}).get("name") if project_node else "Zero-Trust Ingress Migration"
+        project_name = project_node.get("properties", {}).get("name") if project_node else "Zero-Trust Ingress 2026"
 
         is_ownership_query = bool(re.search(r"who|owner|know|team|expert", user_query, re.I))
 
@@ -320,9 +320,19 @@ def _default_synthesize(
             source_type = ev.get("source_type") or (
                 "slack" if "slack://" in source_uri else "linear" if "linear://" in source_uri else "confluence" if "confluence://" in source_uri else "notion" if "notion://" in source_uri else "document"
             )
-            author = ev.get("author") or (
-                "Aarav Mehta" if "aarav" in excerpt.lower() else "Rohan Verma" if "rohan" in excerpt.lower() else "Priya Nair" if "priya" in excerpt.lower() else "Devin Vance" if "devin" in excerpt.lower() else "Elena Rostova" if "elena" in excerpt.lower() else "Lead Engineer"
-            )
+            raw_author = ev.get("author", "")
+            if "aarav" in raw_author.lower() or "aarav" in excerpt.lower():
+                author = "Aarav Mehta"
+            elif "rohan" in raw_author.lower() or "rohan" in excerpt.lower():
+                author = "Rohan Verma"
+            elif "priya" in raw_author.lower() or "priya" in excerpt.lower():
+                author = "Priya Nair"
+            elif "devin" in raw_author.lower() or "devin" in excerpt.lower():
+                author = "Devin Patel"
+            elif "elena" in raw_author.lower() or "elena" in excerpt.lower():
+                author = "Elena Rostova"
+            else:
+                author = raw_author or "Lead Engineer"
 
             marker = f"[E{idx + 1}]"
 

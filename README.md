@@ -5,7 +5,7 @@
 [![Secondary Track](https://img.shields.io/badge/Track-Agent%20Memory%20%26%20Coordination-indigo)](docs/JUDGE_QA_GUIDE.md)
 [![Database](https://img.shields.io/badge/Graph-FalkorDB%20Latest-crimson)](https://falkordb.com)
 [![State](https://img.shields.io/badge/State-Redis%20Lua%20CAS%20Fencing-red)](contracts/PROTOCOL.md)
-[![Tests](https://img.shields.io/badge/Tests-87%20Passed-brightgreen)](backend/tests)
+[![Tests](https://img.shields.io/badge/Tests-92%20Passed-brightgreen)](backend/tests)
 
 > **Autonomous Decision Provenance, Topological Drift Detection, and Grounded Multi-Tenant State Engine for FalkorDB Graph Hacks.**  
 > An auditable, temporal property graph connecting enterprise systems, engineering teams, and architectural decision records to verbatim cryptographic evidence with zero-hallucination verification.

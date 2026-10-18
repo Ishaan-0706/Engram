@@ -128,7 +128,7 @@ def test_live_tenant_acme_payments():
     if not history.get("ok"):
         pytest.skip(history["error"]["message"])
     assert any(r["label"] == "Decision" for r in history["records"])
-    assert any(e["id"] == "evi_018f_latency_auth" for e in history["evidence"])
+    assert any(e["id"] in {"evi_slack_inc", "evi_018f_latency_auth"} for e in history["evidence"])
     jsonschema.validate(instance=history, schema=ENVELOPE_SCHEMA)
 
     # 2. detect_documentation_drift
@@ -140,7 +140,7 @@ def test_live_tenant_acme_payments():
     # 3. get_system_ownership
     own = mcp_tools.get_system_ownership("acme_payments", "payment-gateway")
     assert own["ok"]
-    assert any(r["id"] in {"usr_018f_priya", "usr_018f_aarav"} for r in own["records"])
+    assert any(r["id"] in {"person_priya", "person_aarav", "usr_018f_priya", "usr_018f_aarav"} for r in own["records"])
     jsonschema.validate(instance=own, schema=ENVELOPE_SCHEMA)
 
     # 4. reassign_system_owner
@@ -148,9 +148,9 @@ def test_live_tenant_acme_payments():
     current_email = (
         current_person["properties"].get("canonical_email")
         if current_person
-        else "priya@acme.com"
+        else "priya@acme-synthetic.internal"
     )
-    target_email = "aarav@acme.com" if current_email == "priya@acme.com" else "priya@acme.com"
+    target_email = "aarav@acme-synthetic.internal" if "priya" in current_email else "priya@acme-synthetic.internal"
 
     reassigned = action_tools.reassign_system_owner(
         "acme_payments", "payment-gateway", target_email
@@ -166,7 +166,7 @@ def test_live_tenant_acme_payments():
 
     # Revert ownership back to restore initial state
     restored = action_tools.reassign_system_owner(
-        "acme_payments", "payment-gateway", current_email or "priya@acme.com"
+        "acme_payments", "payment-gateway", current_email or "priya@acme-synthetic.internal"
     )
     assert restored["ok"] is True
     jsonschema.validate(instance=restored, schema=ENVELOPE_SCHEMA)

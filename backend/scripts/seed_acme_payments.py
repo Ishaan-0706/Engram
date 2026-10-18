@@ -1,17 +1,23 @@
 """Seed script for tenant_acme_payments graph.
 
-Seeds the unified enterprise graph for Acme Payments:
-- People:
-  - Aarav Mehta (Staff Security Engineer)
-  - Priya Nair (Payments Lead)
-  - Rohan Verma (Security Architect)
-- Team: Core Payments & Security
-- Project: Zero-Trust Ingress Migration
-- System: payment-gateway
-- Documents: Payments Auth RFC v1 (stale)
+Seeds the unified enterprise graph for Acme FinTech (100% synthetic, .internal domain):
+- People (@acme-synthetic.internal):
+  - person_priya (Priya Nair, Staff Engineer)
+  - person_aarav (Aarav Mehta, Principal Security Architect)
+  - person_rohan (Rohan Verma, Senior SRE)
+- Teams:
+  - team_core_payments ("Core Payments & Security")
+  - team_ledger ("Settlement & Ledger SRE")
+- Project:
+  - proj_zero_trust ("Zero-Trust Ingress 2026")
+- Systems:
+  - sys_payment_gw (payment-gateway)
+  - sys_settlement (settlement-worker, depends on payment-gateway)
 - Decisions:
-  - dec_oauth_introspection (superseded)
-  - dec_ed25519_local (active, supersedes oauth)
+  - dec_oauth_introspect (superseded)
+  - dec_ed25519_local (active, supersedes dec_oauth_introspect)
+- Documents:
+  - doc_auth_rfc (stale, "Payments Auth RFC v1")
 - Multi-Source Evidence (Slack chat + Linear ticket + Confluence doc)
 """
 
@@ -92,28 +98,30 @@ def bootstrap_indexes(graph: Any, name: str) -> None:
 
 
 def seed_acme_payments(db: FalkorDB) -> tuple[int, int]:
-    """Re-seed tenant_acme_payments to pristine state."""
+    """Re-seed tenant_acme_payments to pristine state with 100% synthetic enterprise data."""
     if GRAPH_NAME in db.list_graphs():
         db.select_graph(GRAPH_NAME).delete()
 
     graph = db.select_graph(GRAPH_NAME)
     bootstrap_indexes(graph, GRAPH_NAME)
 
-    # 1. People
+    # 1. People (@acme-synthetic.internal)
     graph.query(
         """
-        CREATE (:Person {id: 'usr_018f_aarav', display_name: 'Aarav Mehta', canonical_email: 'aarav@acme.com', role: 'Staff Security Engineer'}),
-               (:Person {id: 'usr_018f_priya', display_name: 'Priya Nair', canonical_email: 'priya@acme.com', role: 'Payments Lead'}),
-               (:Person {id: 'usr_018f_rohan', display_name: 'Rohan Verma', canonical_email: 'rohan@acme.com', role: 'Security Architect'})
+        CREATE (:Person {id: 'person_priya', display_name: 'Priya Nair', canonical_email: 'priya@acme-synthetic.internal', role: 'Staff Engineer'}),
+               (:Person {id: 'person_aarav', display_name: 'Aarav Mehta', canonical_email: 'aarav@acme-synthetic.internal', role: 'Principal Security Architect'}),
+               (:Person {id: 'person_rohan', display_name: 'Rohan Verma', canonical_email: 'rohan@acme-synthetic.internal', role: 'Senior SRE'})
         """
     )
 
-    # 2. Team, Project & System
+    # 2. Teams, Projects & Systems
     graph.query(
         """
-        CREATE (:Team {id: 'team_core_pay', name: 'Core Payments & Security'}),
-               (:Project {id: 'proj_zero_trust_2026', name: 'Zero-Trust Ingress Migration', status: 'in_progress'}),
-               (:System {id: 'sys_payment_gw', name: 'payment-gateway', status: 'active'})
+        CREATE (:Team {id: 'team_core_payments', name: 'Core Payments & Security'}),
+               (:Team {id: 'team_ledger', name: 'Settlement & Ledger SRE'}),
+               (:Project {id: 'proj_zero_trust', name: 'Zero-Trust Ingress 2026', status: 'in_progress'}),
+               (:System {id: 'sys_payment_gw', name: 'payment-gateway', status: 'active'}),
+               (:System {id: 'sys_settlement', name: 'settlement-worker', status: 'active'})
         """
     )
 
@@ -122,9 +130,9 @@ def seed_acme_payments(db: FalkorDB) -> tuple[int, int]:
     anchor_ts = now_ms - (62 * 86400 * 1000)
     graph.query(
         """
-        CREATE (:Document {id: 'doc_auth_rfc', title: 'Payments Auth RFC v1', status: 'stale', uri: 'confluence://acme/docs/auth-rfc-v1', created_at: $anchor_ts}),
-               (:Decision {id: 'dec_oauth_introspection', summary: 'Use centralized OAuth introspection endpoint for payment auth', status: 'superseded', timestamp: $anchor_ts}),
-               (:Decision {id: 'dec_ed25519_local', summary: 'Verify tokens locally via Ed25519 public keys to protect p99 latency', status: 'active', timestamp: $now_ms})
+        CREATE (:Document {id: 'doc_auth_rfc', title: 'Payments Auth RFC v1', status: 'stale', uri: 'confluence://acme-synthetic/docs/auth-rfc-v1', created_at: $anchor_ts}),
+               (:Decision {id: 'dec_oauth_introspect', summary: 'Centralized OAuth2 token introspection on every API request', status: 'superseded', timestamp: $anchor_ts}),
+               (:Decision {id: 'dec_ed25519_local', summary: 'Local Ed25519 cryptographic signature verification with 5-minute JWKS rotation', status: 'active', timestamp: $now_ms})
         """,
         {"anchor_ts": anchor_ts, "now_ms": now_ms},
     )
@@ -132,37 +140,36 @@ def seed_acme_payments(db: FalkorDB) -> tuple[int, int]:
     # 4. Multi-Source Evidence (Slack chat + Linear ticket + Confluence doc)
     # Chat: Slack incident thread
     slack_excerpt = (
-        "INC-PAYMENTS Incident Retrospective (#inc-payments): Aarav Mehta (aarav@acme.com) reported "
-        "250ms p99 OAuth introspection latency spikes during flash sales. Benchmark confirms 1.2ms "
-        "Ed25519 local signature verification."
+        "Centralized OAuth token introspection spiked p99 latency to 250ms under peak checkout load. "
+        "Switching payment-gateway to local Ed25519 public-key verification reduced p99 auth latency to 1.2ms."
     )
-    slack_uri = "slack://channels/inc-payments/p1726000000"
+    slack_uri = "slack://acme-synthetic/inc-payments/p1726000000"
     slack_hash = hashlib.sha256(f"{slack_excerpt}\n{slack_uri}".encode("utf-8")).hexdigest()
 
     # Ticket: Linear issue
     linear_excerpt = (
-        "PAY-402: Replace centralized OAuth introspection with local Ed25519 key rotation. "
-        "Authored by Rohan Verma (rohan@acme.com). Approved by Payments Lead Priya Nair."
+        "Ticket PAY-402: Rolled out Envoy WASM filter for local Ed25519 verification across all ingress pods; "
+        "deprecated OAuth introspection endpoint."
     )
-    linear_uri = "linear://acme-payments/issue/PAY-402"
+    linear_uri = "linear://acme-synthetic/issue/PAY-402"
     linear_hash = hashlib.sha256(f"{linear_excerpt}\n{linear_uri}".encode("utf-8")).hexdigest()
 
     # Doc: Confluence RFC proposal
     doc_excerpt = (
-        "Payments Auth RFC v1 (confluence://acme/docs/auth-rfc-v1): Authored by Priya Nair (priya@acme.com). "
-        "Architecture specification specifying centralized OAuth token introspection for payment-gateway ingress."
+        "Payments Auth RFC v1 (confluence://acme-synthetic/docs/auth-rfc-v1): Authored by Priya Nair "
+        "(priya@acme-synthetic.internal). Centralized OAuth token introspection architecture for payment-gateway ingress."
     )
-    doc_uri = "confluence://acme/docs/auth-rfc-v1"
+    doc_uri = "confluence://acme-synthetic/docs/auth-rfc-v1"
     doc_hash = hashlib.sha256(f"{doc_excerpt}\n{doc_uri}".encode("utf-8")).hexdigest()
 
     graph.query(
         """
         CREATE (:Source {id: 'src_slack_inc', uri: $slack_uri, source_type: 'slack', content_hash: $slack_hash}),
                (:Evidence {
-                   id: 'evi_018f_latency_auth',
+                   id: 'evi_slack_inc',
                    record_id: 'dec_ed25519_local',
                    source_type: 'slack',
-                   author: 'aarav@acme.com',
+                   author: 'aarav@acme-synthetic.internal',
                    excerpt: $slack_excerpt,
                    source_uri: $slack_uri,
                    source_timestamp: '2026-09-22T14:30:00Z',
@@ -171,10 +178,10 @@ def seed_acme_payments(db: FalkorDB) -> tuple[int, int]:
                }),
                (:Source {id: 'src_linear_pay_402', uri: $linear_uri, source_type: 'linear', content_hash: $linear_hash}),
                (:Evidence {
-                   id: 'evi_018f_ticket_pay402',
+                   id: 'evi_ticket_pay402',
                    record_id: 'dec_ed25519_local',
                    source_type: 'linear',
-                   author: 'rohan@acme.com',
+                   author: 'rohan@acme-synthetic.internal',
                    excerpt: $linear_excerpt,
                    source_uri: $linear_uri,
                    source_timestamp: '2026-09-23T09:15:00Z',
@@ -183,10 +190,10 @@ def seed_acme_payments(db: FalkorDB) -> tuple[int, int]:
                }),
                (:Source {id: 'src_confluence_rfc', uri: $doc_uri, source_type: 'confluence', content_hash: $doc_hash}),
                (:Evidence {
-                   id: 'evi_018f_rfc_proposal',
+                   id: 'evi_doc_auth_rfc',
                    record_id: 'doc_auth_rfc',
                    source_type: 'confluence',
-                   author: 'priya@acme.com',
+                   author: 'priya@acme-synthetic.internal',
                    excerpt: $doc_excerpt,
                    source_uri: $doc_uri,
                    source_timestamp: '2026-08-10T11:00:00Z',
@@ -210,39 +217,45 @@ def seed_acme_payments(db: FalkorDB) -> tuple[int, int]:
     # 5. Edges Connecting People, Teams, Projects, Systems, Documents, Tickets, Chats, Decisions
     graph.query(
         """
-        MATCH (aarav:Person {id: 'usr_018f_aarav'}),
-              (priya:Person {id: 'usr_018f_priya'}),
-              (rohan:Person {id: 'usr_018f_rohan'}),
-              (team:Team {id: 'team_core_pay'}),
-              (proj:Project {id: 'proj_zero_trust_2026'}),
-              (sys:System {id: 'sys_payment_gw'}),
+        MATCH (aarav:Person {id: 'person_aarav'}),
+              (priya:Person {id: 'person_priya'}),
+              (rohan:Person {id: 'person_rohan'}),
+              (team_core:Team {id: 'team_core_payments'}),
+              (team_ledg:Team {id: 'team_ledger'}),
+              (proj:Project {id: 'proj_zero_trust'}),
+              (sys_gw:System {id: 'sys_payment_gw'}),
+              (sys_set:System {id: 'sys_settlement'}),
               (doc:Document {id: 'doc_auth_rfc'}),
-              (old_dec:Decision {id: 'dec_oauth_introspection'}),
+              (old_dec:Decision {id: 'dec_oauth_introspect'}),
               (new_dec:Decision {id: 'dec_ed25519_local'}),
-              (slack_evi:Evidence {id: 'evi_018f_latency_auth'}),
+              (slack_evi:Evidence {id: 'evi_slack_inc'}),
               (slack_src:Source {id: 'src_slack_inc'}),
-              (linear_evi:Evidence {id: 'evi_018f_ticket_pay402'}),
+              (linear_evi:Evidence {id: 'evi_ticket_pay402'}),
               (linear_src:Source {id: 'src_linear_pay_402'}),
-              (doc_evi:Evidence {id: 'evi_018f_rfc_proposal'}),
+              (doc_evi:Evidence {id: 'evi_doc_auth_rfc'}),
               (doc_src:Source {id: 'src_confluence_rfc'})
         CREATE
             /* People & Teams */
-            (aarav)-[:MEMBER_OF {role: 'Staff Security Engineer'}]->(team),
-            (priya)-[:MEMBER_OF {role: 'Payments Lead'}]->(team),
-            (rohan)-[:MEMBER_OF {role: 'Security Architect'}]->(team),
-            (team)-[:RESPONSIBLE_FOR]->(sys),
+            (priya)-[:MEMBER_OF {role: 'Staff Engineer'}]->(team_core),
+            (aarav)-[:MEMBER_OF {role: 'Principal Security Architect'}]->(team_core),
+            (rohan)-[:MEMBER_OF {role: 'Senior SRE'}]->(team_ledg),
+            (team_core)-[:RESPONSIBLE_FOR]->(sys_gw),
+            (team_ledg)-[:RESPONSIBLE_FOR]->(sys_set),
 
             /* Formal Accountability (OWNS) */
-            (priya)-[:OWNS {valid_from: 1700000000000, ingested_at: 1726900000000, valid_to: null}]->(sys),
+            (priya)-[:OWNS {valid_from: 1700000000000, ingested_at: 1726900000000, valid_to: null}]->(sys_gw),
+            (rohan)-[:OWNS {valid_from: 1700000000000, ingested_at: 1726900000000, valid_to: null}]->(sys_set),
 
             /* Projects & Systems */
-            (sys)-[:PART_OF]->(proj),
+            (sys_gw)-[:PART_OF]->(proj),
+            (sys_set)-[:PART_OF]->(proj),
+            (sys_set)-[:DEPENDS_ON {protocol: 'gRPC', tier: 'core'}]->(sys_gw),
             (new_dec)-[:IMPACTS_PROJECT]->(proj),
 
             /* Decisions & Systems */
             (aarav)-[:ESTABLISHED]->(new_dec),
-            (new_dec)-[:AFFECTS]->(sys),
-            (old_dec)-[:AFFECTS]->(sys),
+            (new_dec)-[:AFFECTS]->(sys_gw),
+            (old_dec)-[:AFFECTS]->(sys_gw),
             (new_dec)-[:SUPERSEDES {reason: 'OAuth introspection latency violated 250ms p99 SLA'}]->(old_dec),
 
             /* Authorship of Knowledge Artifacts */
@@ -252,7 +265,7 @@ def seed_acme_payments(db: FalkorDB) -> tuple[int, int]:
             (priya)-[:AUTHORED]->(doc),
 
             /* Document relationships */
-            (doc)-[:DOCUMENTS]->(sys),
+            (doc)-[:DOCUMENTS]->(sys_gw),
             (doc)-[:PROPOSED]->(old_dec),
 
             /* Evidence grounding across Chat, Ticket, Doc */
@@ -278,6 +291,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     host = args.host or os.environ.get("FALKORDB_HOST", "localhost")
-    port = int(args.port or os.environ.get("FALKORDB_PORT", "6379"))
+    port = args.port or int(os.environ.get("FALKORDB_PORT", "6379"))
+
     db = FalkorDB(host=host, port=port)
     seed_acme_payments(db)
