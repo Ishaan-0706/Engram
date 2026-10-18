@@ -1,8 +1,21 @@
 import type { Metadata } from 'next';
+import { Inter, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-sans',
+  display: 'swap',
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  variable: '--font-mono',
+  display: 'swap',
+});
+
 export const metadata: Metadata = {
-  title: 'Company Brain | Executive Dashboard',
+  title: 'Company Brain | Executive Console',
   description: 'Enterprise Knowledge Graph, deterministic grounded evidence synthesis, and 2PC proposal state machine.',
 };
 
@@ -12,8 +25,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark bg-slate-950">
-      <body className="bg-slate-950 text-slate-100 min-h-screen antialiased selection:bg-indigo-500/30 selection:text-indigo-200">
+    <html lang="en" className={`dark ${inter.variable} ${jetbrainsMono.variable}`}>
+      <body className="bg-[#13151A] text-[#E4E7EB] min-h-screen antialiased font-sans selection:bg-[#4C78A8]/25 selection:text-[#E4E7EB]">
         {children}
       </body>
     </html>

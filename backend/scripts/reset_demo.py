@@ -103,12 +103,15 @@ def seed_acme_payments(db: FalkorDB) -> tuple[int, int]:
     )
 
     # Document & Decisions
+    now_ms = int(time.time() * 1000)
+    anchor_ts = now_ms - (62 * 86400 * 1000)
     graph.query(
         """
-        CREATE (:Document {id: 'doc_auth_rfc', title: 'Payments Auth RFC v1', status: 'stale', uri: 'confluence://acme/docs/auth-rfc-v1'}),
-               (:Decision {id: 'dec_oauth_introspection', summary: 'Use centralized OAuth introspection endpoint for payment auth', status: 'superseded'}),
-               (:Decision {id: 'dec_ed25519_local', summary: 'Verify tokens locally via Ed25519 public keys to protect p99 latency', status: 'active'})
-        """
+        CREATE (:Document {id: 'doc_auth_rfc', title: 'Payments Auth RFC v1', status: 'stale', uri: 'confluence://acme/docs/auth-rfc-v1', created_at: $anchor_ts}),
+               (:Decision {id: 'dec_oauth_introspection', summary: 'Use centralized OAuth introspection endpoint for payment auth', status: 'superseded', timestamp: $anchor_ts}),
+               (:Decision {id: 'dec_ed25519_local', summary: 'Verify tokens locally via Ed25519 public keys to protect p99 latency', status: 'active', timestamp: $now_ms})
+        """,
+        {"anchor_ts": anchor_ts, "now_ms": now_ms},
     )
 
     # Source & Evidence

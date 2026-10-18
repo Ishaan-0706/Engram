@@ -3,8 +3,8 @@
 @tailwind utilities;
 
 :root {
-  --background: #020617;
-  --foreground: #f8fafc;
+  --background: #13151A;
+  --foreground: #E4E7EB;
 }
 
 body {
@@ -12,25 +12,26 @@ body {
   background: var(--background);
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   overflow-x: hidden;
+  letter-spacing: -0.01em;
 }
 
-/* Custom polished scrollbars */
+/* Tactical graphite and hairline iron scrollbars */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #090d16;
+  background: #13151A;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #1e293b;
+  background: #2A2F3B;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #334155;
+  background: #3E4554;
 }
 
 /* Force Graph canvas container reset */

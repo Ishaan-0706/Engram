@@ -573,7 +573,8 @@ export default function DashboardPage() {
       const nextEpoch = epoch + 1;
       setEpoch(nextEpoch);
 
-      const actionType = turnState?.pending_proposal?.action?.type;
+      const proposal = turnState?.pending_proposal;
+      const actionType = proposal?.proposed_action?.action_type || proposal?.action?.type;
 
       // Advance turn state to COMPLETED
       setTurnState((prev) => prev ? {
@@ -583,12 +584,16 @@ export default function DashboardPage() {
         pending_proposal: null,
       } : null);
 
+      const targetDocId = proposal?.proposed_action?.target_entity_id || proposal?.action?.document_id || 'doc_auth_rfc';
+      const targetDecId = proposal?.proposed_action?.new_value || proposal?.action?.superseding_decision_id || 'dec_ed25519_local';
+      const targetOwner = proposal?.proposed_action?.new_value || proposal?.action?.new_owner_email || 'aarav@acme.com';
+
       // Live graph mutations on canvas
-      if (actionType === 'documentation_drift_fix') {
+      if (actionType === 'documentation_drift_fix' || actionType === 'MARK_DOCUMENT_ALIGNED') {
         // Update Document status from stale to updated
         setNodes((prevNodes) =>
           prevNodes.map((n) =>
-            n.id === 'doc_auth_rfc'
+            n.id === targetDocId
               ? {
                   ...n,
                   properties: {
@@ -604,18 +609,18 @@ export default function DashboardPage() {
         setLinks((prevLinks) => {
           const exists = prevLinks.some(
             (l) =>
-              (typeof l.source === 'object' ? (l.source as any).id : l.source) === 'doc_auth_rfc' &&
-              (typeof l.target === 'object' ? (l.target as any).id : l.target) === 'dec_ed25519_local'
+              (typeof l.source === 'object' ? (l.source as any).id : l.source) === targetDocId &&
+              (typeof l.target === 'object' ? (l.target as any).id : l.target) === targetDecId
           );
           if (exists) return prevLinks;
           return [
             ...prevLinks,
             {
-              source: 'doc_auth_rfc',
-              target: 'dec_ed25519_local',
+              source: targetDocId,
+              target: targetDecId,
               label: 'ALIGNED_WITH',
               type: 'ALIGNED_WITH',
-              color: '#10b981',
+              color: '#4E9F76',
             },
           ];
         });
@@ -623,21 +628,21 @@ export default function DashboardPage() {
         // Update timeline status
         setTimeline((prev) =>
           prev.map((item) =>
-            item.id === 'tl_1'
-              ? { ...item, status: 'Reconciled & Aligned', title: 'Payments Auth RFC v1 (Reconciled)' }
+            item.status === 'stale'
+              ? { ...item, status: 'active', title: `${item.title} (Reconciled)` }
               : item
           )
         );
-      } else if (actionType === 'reassign_owner') {
+      } else if (actionType === 'reassign_owner' || actionType === 'REASSIGN_OWNERSHIP') {
         // Update System active owner
         setNodes((prevNodes) =>
           prevNodes.map((n) =>
-            n.id === 'sys_payment_gw'
+            n.label === 'System'
               ? {
                   ...n,
                   properties: {
                     ...n.properties,
-                    active_owner: 'Aarav Sharma (aarav@acme.com)',
+                    active_owner: targetOwner,
                   },
                 }
               : n
@@ -647,8 +652,8 @@ export default function DashboardPage() {
         // Update active OWNS link
         setLinks((prevLinks) =>
           prevLinks.map((l) =>
-            l.type === 'OWNS' && (typeof l.target === 'object' ? (l.target as any).id : l.target) === 'sys_payment_gw'
-              ? { ...l, source: 'usr_018f_aarav' }
+            l.type === 'OWNS'
+              ? { ...l, label: 'OWNS (Updated)' }
               : l
           )
         );
@@ -678,7 +683,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans select-none antialiased">
+    <div className="min-h-screen bg-[#13151A] text-[#E4E7EB] flex flex-col font-sans select-none antialiased">
       {/* Top Bar */}
       <TopBar
         currentTenant={currentTenant}

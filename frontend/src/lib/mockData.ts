@@ -1,7 +1,7 @@
 import { GraphLink, GraphNode, TimelineItem, TurnState } from '@/types';
 
 // ============================================================================
-// ACME PAYMENTS TOPOLOGY
+// ACME PAYMENTS TOPOLOGY (Warm Graphite & Engineering Slate Palette)
 // ============================================================================
 
 export const ACME_GRAPH_NODES: GraphNode[] = [
@@ -9,8 +9,8 @@ export const ACME_GRAPH_NODES: GraphNode[] = [
     id: 'sys_payment_gw',
     name: 'payment-gateway',
     label: 'System',
-    color: '#10b981', // emerald
-    val: 24,
+    color: '#4C78A8', // Deep Steel Blue
+    val: 20,
     properties: {
       type: 'Core Ingress Payment Proxy',
       sla: '99.99%',
@@ -22,8 +22,8 @@ export const ACME_GRAPH_NODES: GraphNode[] = [
     id: 'usr_018f_priya',
     name: 'Priya Nair',
     label: 'Person',
-    color: '#3b82f6', // blue
-    val: 18,
+    color: '#D4CEBF', // Warm Sandstone
+    val: 16,
     properties: {
       title: 'Payments Lead',
       team: 'Core Payments',
@@ -34,8 +34,8 @@ export const ACME_GRAPH_NODES: GraphNode[] = [
     id: 'usr_018f_aarav',
     name: 'Aarav Sharma',
     label: 'Person',
-    color: '#3b82f6', // blue
-    val: 16,
+    color: '#D4CEBF', // Warm Sandstone
+    val: 15,
     properties: {
       title: 'Staff Engineer',
       team: 'Core Payments',
@@ -46,7 +46,7 @@ export const ACME_GRAPH_NODES: GraphNode[] = [
     id: 'doc_auth_rfc',
     name: 'Payments Auth RFC v1',
     label: 'Document',
-    color: '#f59e0b', // amber
+    color: '#D07D38', // Warm Clay / Ochre (Stale)
     val: 16,
     properties: {
       status: 'stale',
@@ -58,8 +58,8 @@ export const ACME_GRAPH_NODES: GraphNode[] = [
     id: 'dec_oauth_introspection',
     name: 'OAuth Token Introspection',
     label: 'Decision',
-    color: '#8b5cf6', // violet
-    val: 18,
+    color: '#68707E', // Ash Gray (Superseded)
+    val: 17,
     properties: {
       status: 'superseded',
       summary: 'Use centralized OAuth introspection endpoint for payment auth',
@@ -70,8 +70,8 @@ export const ACME_GRAPH_NODES: GraphNode[] = [
     id: 'dec_ed25519_local',
     name: 'Local Ed25519 Token Validation',
     label: 'Decision',
-    color: '#8b5cf6', // violet
-    val: 22,
+    color: '#4E9F76', // Muted Forest / Sage Green (Active)
+    val: 20,
     properties: {
       status: 'active',
       summary: 'Verify tokens locally via Ed25519 public keys to protect p99 latency',
@@ -82,7 +82,7 @@ export const ACME_GRAPH_NODES: GraphNode[] = [
     id: 'evi_018f_latency_auth',
     name: 'Slack #inc-payments (p1726000000)',
     label: 'Evidence',
-    color: '#eab308', // yellow
+    color: '#5E60CE', // Deep Periwinkle / Slate Indigo
     val: 14,
     properties: {
       excerpt: 'INC-PAYMENTS Incident Retrospective: Due to 250ms p99 latency spikes on OAuth introspection during flash sales, we are switching payment-gateway token validation to local Ed25519 public keys.',
@@ -95,7 +95,7 @@ export const ACME_GRAPH_NODES: GraphNode[] = [
     id: 'evi_018f_rfc_proposal',
     name: 'Confluence RFC Excerpt',
     label: 'Evidence',
-    color: '#eab308', // yellow
+    color: '#5E60CE', // Deep Periwinkle / Slate Indigo
     val: 14,
     properties: {
       excerpt: 'RFC originally mandated network token introspection per incoming HTTP request; later invalidated by benchmark incident #842.',
@@ -112,28 +112,28 @@ export const ACME_GRAPH_LINKS: GraphLink[] = [
     target: 'sys_payment_gw',
     label: 'OWNS',
     type: 'OWNS',
-    color: '#64748b',
+    color: '#323744', // Subdued Iron Gray
   },
   {
     source: 'dec_ed25519_local',
     target: 'sys_payment_gw',
     label: 'AFFECTS',
     type: 'AFFECTS',
-    color: '#64748b',
+    color: '#323744',
   },
   {
     source: 'dec_oauth_introspection',
     target: 'sys_payment_gw',
     label: 'AFFECTS',
     type: 'AFFECTS',
-    color: '#64748b',
+    color: '#323744',
   },
   {
     source: 'dec_ed25519_local',
     target: 'dec_oauth_introspection',
     label: 'SUPERSEDES',
     type: 'SUPERSEDES',
-    color: '#ef4444', // dashed red
+    color: '#B84A39', // Muted Brick Red dashed line
     dashed: true,
   },
   {
@@ -141,28 +141,28 @@ export const ACME_GRAPH_LINKS: GraphLink[] = [
     target: 'evi_018f_latency_auth',
     label: 'SUPPORTED_BY',
     type: 'SUPPORTED_BY',
-    color: '#eab308', // solid gold
+    color: '#5E60CE', // Solid Indigo Slate stroke
   },
   {
     source: 'doc_auth_rfc',
     target: 'dec_oauth_introspection',
     label: 'PROPOSED',
     type: 'PROPOSED',
-    color: '#64748b',
+    color: '#323744',
   },
   {
     source: 'doc_auth_rfc',
     target: 'sys_payment_gw',
     label: 'DOCUMENTS',
     type: 'DOCUMENTS',
-    color: '#64748b',
+    color: '#323744',
   },
   {
     source: 'dec_oauth_introspection',
     target: 'evi_018f_rfc_proposal',
     label: 'SUPPORTED_BY',
     type: 'SUPPORTED_BY',
-    color: '#eab308', // solid gold
+    color: '#5E60CE',
   },
 ];
 
@@ -175,7 +175,7 @@ export const ACME_TIMELINE: TimelineItem[] = [
     timestamp: 'Aug 10, 2026',
     author: 'Priya Nair',
     summary: 'Initial architectural specification proposing centralized OAuth network introspection on ingress requests.',
-    status: 'Stale / Needs Update',
+    status: 'stale',
     evidence_id: 'evi_018f_rfc_proposal',
   },
   {
@@ -185,8 +185,8 @@ export const ACME_TIMELINE: TimelineItem[] = [
     system: 'payment-gateway',
     timestamp: 'Aug 15, 2026',
     author: 'Architecture Guild',
-    summary: 'Implemented centralized authorization check. Later identified as cause of p99 latency regressions >250ms.',
-    status: 'Superseded',
+    summary: 'Implemented centralized authorization check. Later identified as cause of p99 latency regressions >250ms during flash sales.',
+    status: 'superseded',
     evidence_id: 'evi_018f_rfc_proposal',
   },
   {
@@ -197,7 +197,7 @@ export const ACME_TIMELINE: TimelineItem[] = [
     timestamp: 'Sep 22, 2026',
     author: 'Priya Nair & Aarav Sharma',
     summary: 'Superseded centralized auth with in-process cryptographic verification using rotated Ed25519 public keys. Latency reduced to 1.2ms.',
-    status: 'Operational / Validated',
+    status: 'active',
     evidence_id: 'evi_018f_latency_auth',
   },
 ];
@@ -211,8 +211,8 @@ export const NEXUS_GRAPH_NODES: GraphNode[] = [
     id: 'sys_018f_kafka',
     name: 'event-stream-cluster',
     label: 'System',
-    color: '#10b981', // emerald
-    val: 24,
+    color: '#4C78A8', // Deep Steel Blue
+    val: 20,
     properties: {
       type: 'Distributed Event Streaming Cluster',
       sla: '99.999%',
@@ -224,8 +224,8 @@ export const NEXUS_GRAPH_NODES: GraphNode[] = [
     id: 'usr_018f_elena',
     name: 'Elena Rostova',
     label: 'Person',
-    color: '#3b82f6', // blue
-    val: 18,
+    color: '#D4CEBF', // Warm Sandstone
+    val: 16,
     properties: {
       title: 'Platform Lead',
       team: 'Nexus Platform',
@@ -236,8 +236,8 @@ export const NEXUS_GRAPH_NODES: GraphNode[] = [
     id: 'usr_018f_devin',
     name: 'Devin Vance',
     label: 'Person',
-    color: '#3b82f6', // blue
-    val: 16,
+    color: '#D4CEBF', // Warm Sandstone
+    val: 15,
     properties: {
       title: 'Principal SRE',
       team: 'Nexus Platform',
@@ -248,7 +248,7 @@ export const NEXUS_GRAPH_NODES: GraphNode[] = [
     id: 'doc_018f_kafka_runbook',
     name: 'Event Bus Partitioning SOP v2',
     label: 'Document',
-    color: '#f59e0b', // amber
+    color: '#D07D38', // Warm Clay / Ochre
     val: 16,
     properties: {
       status: 'stale',
@@ -260,8 +260,8 @@ export const NEXUS_GRAPH_NODES: GraphNode[] = [
     id: 'dec_018f_zookeeper',
     name: 'ZooKeeper Partition Leadership',
     label: 'Decision',
-    color: '#8b5cf6', // violet
-    val: 18,
+    color: '#68707E', // Ash Gray
+    val: 17,
     properties: {
       status: 'superseded',
       summary: 'Use ZooKeeper for partition leadership and broker metadata',
@@ -272,8 +272,8 @@ export const NEXUS_GRAPH_NODES: GraphNode[] = [
     id: 'dec_018f_kraft',
     name: 'KRaft Metadata Quorum',
     label: 'Decision',
-    color: '#8b5cf6', // violet
-    val: 22,
+    color: '#4E9F76', // Muted Forest / Sage Green
+    val: 20,
     properties: {
       status: 'active',
       summary: 'Migrate to KRaft metadata quorum to remove ZK bottleneck',
@@ -284,7 +284,7 @@ export const NEXUS_GRAPH_NODES: GraphNode[] = [
     id: 'evi_018f_kraft_consensus',
     name: 'Linear ENG-4091 Incident',
     label: 'Evidence',
-    color: '#eab308', // yellow
+    color: '#5E60CE', // Deep Periwinkle / Slate Indigo
     val: 14,
     properties: {
       excerpt: 'Migrated event-stream-cluster to KRaft mode on 2026-08-14 after ZooKeeper consensus timeouts triggered cross-AZ partition deadlocks.',
@@ -301,28 +301,28 @@ export const NEXUS_GRAPH_LINKS: GraphLink[] = [
     target: 'sys_018f_kafka',
     label: 'OWNS',
     type: 'OWNS',
-    color: '#64748b',
+    color: '#323744',
   },
   {
     source: 'dec_018f_kraft',
     target: 'sys_018f_kafka',
     label: 'AFFECTS',
     type: 'AFFECTS',
-    color: '#64748b',
+    color: '#323744',
   },
   {
     source: 'dec_018f_zookeeper',
     target: 'sys_018f_kafka',
     label: 'AFFECTS',
     type: 'AFFECTS',
-    color: '#64748b',
+    color: '#323744',
   },
   {
     source: 'dec_018f_kraft',
     target: 'dec_018f_zookeeper',
     label: 'SUPERSEDES',
     type: 'SUPERSEDES',
-    color: '#ef4444', // dashed red
+    color: '#B84A39',
     dashed: true,
   },
   {
@@ -330,28 +330,28 @@ export const NEXUS_GRAPH_LINKS: GraphLink[] = [
     target: 'evi_018f_kraft_consensus',
     label: 'SUPPORTED_BY',
     type: 'SUPPORTED_BY',
-    color: '#eab308', // solid gold
+    color: '#5E60CE',
   },
   {
     source: 'doc_018f_kafka_runbook',
     target: 'dec_018f_zookeeper',
     label: 'PROPOSED',
     type: 'PROPOSED',
-    color: '#64748b',
+    color: '#323744',
   },
   {
     source: 'doc_018f_kafka_runbook',
     target: 'sys_018f_kafka',
     label: 'DOCUMENTS',
     type: 'DOCUMENTS',
-    color: '#64748b',
+    color: '#323744',
   },
   {
     source: 'usr_018f_devin',
     target: 'dec_018f_kraft',
     label: 'ESTABLISHED',
     type: 'ESTABLISHED',
-    color: '#64748b',
+    color: '#323744',
   },
 ];
 
@@ -364,7 +364,7 @@ export const NEXUS_TIMELINE: TimelineItem[] = [
     timestamp: 'Jul 15, 2026',
     author: 'Elena Rostova',
     summary: 'Initial operational standard for ZooKeeper-managed partition leadership across 3 availability zones.',
-    status: 'Stale / Superseded',
+    status: 'stale',
     evidence_id: 'evi_018f_kraft_consensus',
   },
   {
@@ -375,7 +375,7 @@ export const NEXUS_TIMELINE: TimelineItem[] = [
     timestamp: 'Jul 20, 2026',
     author: 'Nexus Platform Guild',
     summary: 'ZooKeeper metadata consensus. Partition leader election experienced deadlocks under network partition scenarios.',
-    status: 'Superseded',
+    status: 'superseded',
     evidence_id: 'evi_018f_kraft_consensus',
   },
   {
@@ -386,7 +386,7 @@ export const NEXUS_TIMELINE: TimelineItem[] = [
     timestamp: 'Aug 14, 2026',
     author: 'Devin Vance',
     summary: 'Migrated to Kafka Raft (KRaft) metadata mode, removing external ZooKeeper dependencies and eliminating cross-AZ latency.',
-    status: 'Operational / Validated',
+    status: 'active',
     evidence_id: 'evi_018f_kraft_consensus',
   },
 ];
@@ -397,11 +397,11 @@ export const INITIAL_GRAPH_LINKS = ACME_GRAPH_LINKS;
 export const TIMELINE_DATA = ACME_TIMELINE;
 
 // ============================================================================
-// 3 ONE-CLICK DEMO SCENARIO PRESETS
+// 3 PRESET SCENARIO FLOWS
 // ============================================================================
 
 export const DEMO_PRESETS = {
-  // Button 1: "Trace Payment Auth Drift"
+  // Scenario 1: [ ↗ Auth Drift ]
   tracePaymentAuthDrift: {
     query: 'Why was payment gateway auth changed and is the RFC stale?',
     answer: {
@@ -432,7 +432,7 @@ export const DEMO_PRESETS = {
     },
   },
 
-  // Button 2: "Reassign Ownership"
+  // Scenario 2: [ ⇄ Reassign Owner ]
   reassignOwnership: {
     query: 'Check current ownership of payment-gateway and stage proposal to reassign owner to aarav@acme.com.',
     answer: {
@@ -459,7 +459,7 @@ export const DEMO_PRESETS = {
     },
   },
 
-  // Button 3: "Verify Tenant Isolation"
+  // Scenario 3: [ ⊘ Cross-Tenant ]
   verifyTenantIsolation: {
     query: 'Query event-stream-cluster architecture and KRaft consensus decisions within Acme Payments scope.',
     answer: {
@@ -481,6 +481,6 @@ export const DEMO_PRESETS = {
     sent_hash: 'sha256:4a8c9e1f2b3d4e5a6c7b8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a',
     current_snapshot_hash: 'sha256:9999999999999999999999999999999999999999999999999999999999999999',
     epoch: 3,
-    message: 'Snapshot state drifted in FalkorDB since proposal was staged. Concurrent entity mutation detected.',
+    message: 'Target entity updated timestamp shifted in FalkorDB while proposal was staged. Mutation aborted by state machine.',
   },
 };

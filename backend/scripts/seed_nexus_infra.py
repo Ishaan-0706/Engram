@@ -29,6 +29,7 @@ import logging
 import os
 from pathlib import Path
 import sys
+import time
 from typing import Any
 
 # Ensure backend root is on sys.path
@@ -190,16 +191,20 @@ def seed_nexus_infra(
     )
 
     # Decisions
+    now_ms = int(time.time() * 1000)
+    anchor_ts = now_ms - (62 * 86400 * 1000)
     graph.query(
         """
         MERGE (d:Decision {id: $id})
         SET d.summary = $summary,
-            d.status = $status
+            d.status = $status,
+            d.timestamp = $timestamp
         """,
         {
             "id": "dec_018f_zookeeper",
             "summary": "Use ZooKeeper for partition leadership",
             "status": "superseded",
+            "timestamp": anchor_ts,
         },
     )
 
@@ -207,12 +212,14 @@ def seed_nexus_infra(
         """
         MERGE (d:Decision {id: $id})
         SET d.summary = $summary,
-            d.status = $status
+            d.status = $status,
+            d.timestamp = $timestamp
         """,
         {
             "id": "dec_018f_kraft",
             "summary": "Migrate to KRaft metadata quorum to remove ZK bottleneck",
             "status": "active",
+            "timestamp": now_ms,
         },
     )
 

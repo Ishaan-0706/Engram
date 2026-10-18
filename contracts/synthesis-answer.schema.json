@@ -24,6 +24,9 @@
           }
         }
       }
+    },
+    "proposal": {
+      "type": "object"
     }
   }
 }

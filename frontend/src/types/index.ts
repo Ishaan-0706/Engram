@@ -23,9 +23,29 @@ export interface GroundedAnswer {
   statements?: StatementClaim[];
 }
 
+export interface CalculatedMetrics {
+  divergence_hops: number;
+  drift_staleness_days: number;
+  blast_radius_risk: 'LOW' | 'MODERATE' | 'CRITICAL';
+  affected_downstream_count: number;
+}
+
+export interface ProposedAction {
+  action_type: string;
+  target_entity_id: string;
+  target_field: string;
+  old_value: string;
+  new_value: string;
+  supporting_evidence_ids: string[];
+}
+
 export interface PendingProposal {
   proposal_id: string;
   snapshot_hash: string;
+  summary?: string;
+  rationale?: string;
+  calculated_metrics?: CalculatedMetrics;
+  proposed_action?: ProposedAction;
   action: {
     type: string;
     system_name?: string;
@@ -33,6 +53,10 @@ export interface PendingProposal {
     document_id?: string;
     superseding_decision_id?: string;
     record_ids?: string[];
+    summary?: string;
+    rationale?: string;
+    calculated_metrics?: CalculatedMetrics;
+    proposed_action?: ProposedAction;
     [key: string]: any;
   };
 }

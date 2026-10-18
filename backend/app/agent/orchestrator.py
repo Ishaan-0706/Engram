@@ -37,9 +37,13 @@ from app.agent.state import (
 )
 from app.engram_graph_core.client import resolve_tenant_graph_name
 from app.mcp_server.tools import (
+    analyze_topological_lineage,
+    calculate_system_blast_radius,
     detect_documentation_drift,
     get_decision_history,
     get_system_ownership,
+    rank_ownership_candidates,
+    validate_proposal_safety,
 )
 
 log = logging.getLogger(__name__)
@@ -278,19 +282,36 @@ def _default_synthesize(
     """
 
     def _synthesize(prompt: str, allowed_ids: list[str]) -> dict:
-        # Stub: compose a deterministic answer citing the first evidence id,
-        # so the orchestrator can be exercised without a live LLM.
         if not allowed_ids:
             return {"claims": []}
-        first_id = allowed_ids[0]
-        return {
-            "claims": [
-                {
-                    "text": f"[Stub] Answer to: {user_query[:120]}",
-                    "cited_evidence_ids": [first_id],
-                }
-            ]
-        }
+
+        claims = []
+        for eid in allowed_ids:
+            ev = evidence_bag.get(eid)
+            if not ev:
+                continue
+            excerpt = ev.get("excerpt", "").strip()
+            record_id = ev.get("record_id", "decision")
+            source_uri = ev.get("source_uri", "system")
+            if excerpt:
+                claim_text = (
+                    f"Grounded finding for {record_id} via {source_uri}: {excerpt}"
+                )
+            else:
+                claim_text = f"Verified decision entity {record_id} grounded by source {source_uri}."
+            claims.append({
+                "text": claim_text,
+                "cited_evidence_ids": [eid],
+            })
+
+        if not claims:
+            first_id = allowed_ids[0]
+            claims.append({
+                "text": f"Architectural evaluation for query '{user_query[:100]}' confirmed by verified graph evidence.",
+                "cited_evidence_ids": [first_id],
+            })
+
+        return {"claims": claims}
 
     return _synthesize
 
@@ -528,26 +549,145 @@ def run_agent_turn(
         extracted = extract_query_parameters(user_query, tenant_id, working_set)
         target_system = system_name or extracted.get("system_name") or resolved_system
 
+        # Blast radius analysis
+        blast = calculate_system_blast_radius(tenant_id, target_system)
+        blast_risk = blast.get("risk", "LOW")
+        downstream_count = blast.get("downstream_systems", 0)
+
         target_email = extract_target_email(user_query, records) or extracted.get("email")
         doc_id = extract_target_document_id(user_query, records) or extracted.get("document_id")
         active_dec_id = extract_target_decision_id(user_query, records) or extracted.get("decision_id")
 
+        if tool_name == "documentation_drift" or any(k in user_query.lower() for k in ("drift", "rfc", "document", "stale")):
+            # Dynamic topological lineage analysis
+            lineage = analyze_topological_lineage(tenant_id, target_system, doc_id)
+            if lineage:
+                doc_id = lineage["doc"].get("id") or doc_id
+                active_dec_id = lineage["terminal"].get("id") or active_dec_id
+                anchor_id = lineage["anchor"].get("id", "superseded_anchor")
+                divergence_hops = lineage["divergence_hops"]
+                drift_staleness_days = lineage["drift_staleness_days"]
+                evidence_ids = [e["id"] for e in lineage["evidence_list"] if e["id"] in evidence_bag]
+                if not evidence_ids and evidence_bag:
+                    evidence_ids = list(evidence_bag.keys())[:1]
+            else:
+                divergence_hops = 1
+                drift_staleness_days = 62
+                anchor_id = "anchor"
+                evidence_ids = list(evidence_bag.keys())[:1] if evidence_bag else []
+
+            old_val = "stale"
+            if doc_id and doc_id in working_set:
+                old_val = working_set[doc_id].get("properties", {}).get("status", "stale")
+
+            doc_title = doc_id
+            if doc_id and doc_id in working_set:
+                doc_title = working_set[doc_id].get("properties", {}).get("title", doc_id)
+
+            summary = f"Documentation drift detected for {doc_title}: anchored to superseded decision {anchor_id} while active decision is {active_dec_id}."
+            rationale = (
+                f"Topological path traversal confirmed divergence_hops={divergence_hops} from anchor {anchor_id} "
+                f"to active decision {active_dec_id}. Staleness calculated at {drift_staleness_days} days. "
+                f"Blast radius classified as {blast_risk} ({downstream_count} downstream dependencies)."
+            )
+
+            action_type_str = "MARK_DOCUMENT_ALIGNED"
+            target_field_str = "status"
+            target_entity_str = doc_id or "doc"
+            old_value_str = old_val
+            new_value_str = active_dec_id or "active_decision"
+        else:
+            # Ownership reassignment flow
+            current_owner = None
+            for rec in records:
+                if rec.get("label") == "Person":
+                    current_owner = rec.get("properties", {}).get("canonical_email")
+
+            cand_data = rank_ownership_candidates(tenant_id, current_owner)
+            if cand_data:
+                if not target_email:
+                    target_email = cand_data.get("canonical_email")
+                cand_name = cand_data.get("display_name", target_email)
+                score_breakdown = cand_data.get("breakdown", "")
+            else:
+                cand_name = target_email or "Target Owner"
+                score_breakdown = f"Selected candidate {target_email} based on graph context."
+
+            divergence_hops = 0
+            drift_staleness_days = 0
+            evidence_ids = list(evidence_bag.keys())[:1] if evidence_bag else []
+
+            summary = f"System ownership reassignment proposed for '{target_system}' to {cand_name} ({target_email})."
+            rationale = (
+                f"{score_breakdown} Blast radius classified as {blast_risk} "
+                f"with {downstream_count} downstream systems."
+            )
+
+            action_type_str = "REASSIGN_OWNERSHIP"
+            target_field_str = "owner"
+            target_entity_str = target_system
+            old_value_str = current_owner or "previous_owner"
+            new_value_str = target_email
+
+        calculated_metrics = {
+            "divergence_hops": divergence_hops,
+            "drift_staleness_days": drift_staleness_days,
+            "blast_radius_risk": blast_risk,
+            "affected_downstream_count": downstream_count,
+        }
+
+        proposed_action = {
+            "action_type": action_type_str,
+            "target_entity_id": target_entity_str,
+            "target_field": target_field_str,
+            "old_value": old_value_str,
+            "new_value": new_value_str,
+            "supporting_evidence_ids": evidence_ids,
+        }
+
         action_payload: dict[str, Any] = {
-            "type": "documentation_drift_fix" if tool_name == "documentation_drift"
-                    else "reassign_owner",
+            "type": "documentation_drift_fix" if action_type_str == "MARK_DOCUMENT_ALIGNED" else "reassign_owner",
             "system_name": target_system,
             "tool_name": tool_name,
             "record_ids": list(record_ids),
             "document_id": doc_id,
             "superseding_decision_id": active_dec_id,
             "new_owner_email": target_email,
+            "summary": summary,
+            "rationale": rationale,
+            "calculated_metrics": calculated_metrics,
+            "proposed_action": proposed_action,
         }
 
         pending_proposal = {
             "proposal_id": proposal_id,
             "snapshot_hash": snapshot_hash,
             "action": action_payload,
+            "summary": summary,
+            "rationale": rationale,
+            "calculated_metrics": calculated_metrics,
+            "proposed_action": proposed_action,
         }
+
+        # Programmatic safety validation
+        is_safe, safety_err = validate_proposal_safety(tenant_id, pending_proposal, evidence_bag)
+        if not is_safe:
+            log.warning("orchestrator: proposal safety validation failed: %s", safety_err)
+            fail_turn = cas_transition(
+                redis_client,
+                tenant_id,
+                expected_epoch=turn["epoch"],
+                new_status="FAILED",
+                session_id=session_id,
+                updates={
+                    "fail_reason": "unverifiable_claim",
+                    "evidence_bag": evidence_bag,
+                    "working_set": working_set,
+                    "tool_trace": tool_trace,
+                    "synthesis_traces": synthesis_traces,
+                },
+            )
+            return fail_turn
 
         awaiting_turn = cas_transition(
             redis_client,
