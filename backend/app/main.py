@@ -194,10 +194,11 @@ def api_confirm(
                 break
 
     def _fetch_live_ats() -> dict[str, str]:
-        """Re-read updated_at proxies from the working_set records."""
+        """Re-read updated_at proxies from the proposal record_ids."""
+        record_ids = action_meta.get("record_ids", [])
         ws: dict = turn.get("working_set") or {}
-        # Use record id → label as a stable hash seed (no live DB call in this
-        # stub; production would re-query FalkorDB for updated_at timestamps).
+        if record_ids:
+            return {rid: ws.get(rid, {}).get("label", "") for rid in record_ids}
         return {rid: info.get("label", "") for rid, info in ws.items()}
 
     def _execute_action() -> dict:

@@ -105,6 +105,37 @@ export const CenterPane: React.FC<CenterPaneProps> = ({
     };
   }, [nodes, links, configurePhysics]);
 
+  // Expose node position query helper for Playwright presenter cursor & node interactions
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).__companyBrainFg = fgRef.current;
+      (window as any).__graphNodes = nodes;
+      (window as any).__onNodeClick = onNodeClick;
+      (window as any).__getNodeCoords = (query: string) => {
+        const fg = fgRef.current;
+        if (!fg || !nodes) return null;
+        const q = query.toLowerCase();
+        const node = nodes.find(
+          (n: any) =>
+            (n.id && n.id.toLowerCase() === q) ||
+            (n.id && n.id.toLowerCase().includes(q)) ||
+            (n.name && n.name.toLowerCase().includes(q))
+        );
+        if (!node || node.x === undefined || node.y === undefined) return null;
+        const canvas = document.querySelector('canvas');
+        if (!canvas) return null;
+        const rect = canvas.getBoundingClientRect();
+        const screenPos = typeof fg.graph2ScreenCoords === 'function' ? fg.graph2ScreenCoords(node.x, node.y) : null;
+        if (!screenPos) return null;
+        return {
+          x: Math.round(rect.left + screenPos.x),
+          y: Math.round(rect.top + screenPos.y),
+          node,
+        };
+      };
+    }
+  }, [nodes, onNodeClick]);
+
   // Compute active highlight path: System -> Decision -> Evidence
   const highlightSet = useMemo(() => {
     const nodeIds = new Set<string>();

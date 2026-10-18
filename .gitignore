@@ -2,3 +2,12 @@
 __pycache__/
 *.egg-info/
 .pytest_cache/
+
+# Demo Video Recordings & Media Artifacts (excluded from commits)
+*.mp4
+*.webm
+recordings/
+frontend/recordings/
+voiceover_output/
+frontend/scripts/record_demo_video.mjs
+frontend/AGENTS.md

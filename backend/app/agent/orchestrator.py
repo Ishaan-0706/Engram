@@ -154,14 +154,11 @@ def extract_query_parameters(
         "decision_id": dec_id,
     }
 
-# Simple keyword → tool routing.  Matched in order; first match wins.
+# Simple keyword → tool routing. Matched in order; first match wins.
 _INTENT_RULES: list[tuple[re.Pattern[str], str]] = [
-    (re.compile(r"owner|who|team|responsibility|contact|expert|know",
-                re.I), "system_ownership"),
-    (re.compile(r"drift|stale|rfc|document|outdated|aligned",
-                re.I), "documentation_drift"),
-    (re.compile(r"decision|auth|architecture|why|jwt|ed25519|token|gateway|kafka|kraft|stream",
-                re.I), "decision_history"),
+    (re.compile(r"\b(drift|stale|rfc|outdated|aligned)\b", re.I), "documentation_drift"),
+    (re.compile(r"\b(owner|who|team|responsibility|contact|expert|knows?)\b", re.I), "system_ownership"),
+    (re.compile(r"\b(decision|auth|architecture|why|jwt|ed25519|token|gateway|kafka|kraft|stream)\b", re.I), "decision_history"),
 ]
 
 
@@ -388,7 +385,7 @@ def _default_synthesize(
 # ---------------------------------------------------------------------------
 
 _MUTATION_PATTERNS = re.compile(
-    r"reassign|owner|drift.*(fix|update|mark)|update.*(doc|rfc|document)",
+    r"reassign|owner|drift|stage.*update|update.*(doc|rfc|document)|fix.*(drift|doc)",
     re.I,
 )
 
@@ -460,13 +457,17 @@ def run_agent_turn(
     graph_name = resolve_tenant_graph_name(tenant_id)
     turn = get_turn(redis_client, tenant_id, session_id)
 
-    if turn is None:
+    if turn is None or turn.get("status") in ("COMPLETED", "FAILED"):
+        prior_working_set = turn.get("working_set", {}) if turn else {}
+        prior_evidence = turn.get("evidence_bag", {}) if turn else {}
         turn = create_initial_turn(
             tenant_id=tenant_id,
             user_id=user_id,
             session_id=session_id,
             status="PLANNING",
             epoch=client_epoch,
+            working_set=prior_working_set,
+            evidence_bag=prior_evidence,
         )
         save_turn(redis_client, turn, tenant_id, session_id)
         log.info(
@@ -612,7 +613,7 @@ def run_agent_turn(
     # ------------------------------------------------------------------
     if _needs_mutation(user_query, tool_name):
         proposal_id = generate_uuidv7()
-        snapshot_hash = _snapshot_from_records(records)
+        snapshot_hash = compute_snapshot_hash({rid: info.get("label", "") for rid, info in working_set.items()})
         extracted = extract_query_parameters(user_query, tenant_id, working_set)
         target_system = system_name or extracted.get("system_name") or resolved_system
 

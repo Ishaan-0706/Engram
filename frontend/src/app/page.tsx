@@ -190,6 +190,7 @@ export default function DashboardPage() {
 
   // Execute conversational turn against live FastAPI + FalkorDB backend
   const handleSendQuery = async (query: string) => {
+    setSelectedNode(null);
     const userMsg: ChatMessage = {
       id: 'usr_' + Date.now(),
       role: 'user',
